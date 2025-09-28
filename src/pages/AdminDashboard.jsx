@@ -162,329 +162,7 @@ function AdminDashboard() {
         setFormData(video);
     }, []);
 
-
-    // 文件下载生成逻辑 (全宽视频 + 顶部导航栏)
-    const downloadHtmlFile = useCallback((data) => {
-        const { title, videoUrl, htmlName, category, expiryDate } = data;
-
-        // 获取分类中文名
-        const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === category) || category;
-
-        // 格式化过期日期显示
-        // 确保 HTML 模板中的 ${expiryDisplay} 和 JS 脚本中的 ${expiryDate} 都能正确获取值
-        const expiryDisplay = expiryDate 
-            ? `有效截止: ${expiryDate}` 
-            : '永久有效';
-
-        // 注意：这里将过期遮罩层中的 ${expiryDate} 替换为 ${expiryDisplay}
-        // 这样可以确保当日期为空时，模板中显示的是 '永久有效'
-        const htmlContent = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title} | ${categoryLabel}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* 全局重置与字体 */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body, html {
-            height: 100%;
-            background-color: #f1f3f5;
-            font-family: 'HarmonyOS_Regular', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
-            color: #222;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* ——————— 顶部导航栏 ——————— */
-        .top-navbar {
-            position: sticky;
-            top: 0;
-            width: 100%;
-            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
-            color: white;
-            padding: 12px 20px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .top-navbar .logo {
-            font-size: 18px;
-            font-weight: 700;
-            margin-right: 15px;
-            color: #60a5fa;
-        }
-        .top-navbar h2 {
-            font-size: 16px;
-            font-weight: 500;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 80vw;
-        }
-        @media (max-width: 600px) {
-            .top-navbar { padding: 10px 15px; }
-            .top-navbar h2 { font-size: 14px; }
-            .top-navbar .logo { font-size: 16px; margin-right: 10px; }
-        }
-
-        /* ——————— 主内容区 ——————— */
-        .main-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 16px;
-        }
-
-        /* ——————— 视频播放区域 ——————— */
-        .video-player-container {
-            position: relative;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-top: 16px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-        }
-        .video-player {
-            width: 100%;
-            display: block;
-            outline: none;
-        }
-
-        /* ——————— 视频信息区 ——————— */
-        .video-info-area {
-            padding: 24px 0 32px;
-        }
-        .video-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 12px;
-            line-height: 1.4;
-        }
-        .meta-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            color: #64748b;
-            font-size: 14px;
-        }
-        .category-tag {
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .expiry-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #dc2626;
-            font-weight: 600;
-        }
-        .expiry-status i {
-            font-size: 16px;
-        }
-
-        /* ——————— 过期遮罩层 ——————— */
-        .expired-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(15, 23, 42, 0.92);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: #f87171;
-            z-index: 30;
-            padding: 20px;
-        }
-        .expired-overlay h2 {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            color: #ef4444;
-        }
-        .expired-overlay p {
-            font-size: 16px;
-            margin: 6px 0;
-            color: #fca5a5;
-            max-width: 500px;
-        }
-        .expired-overlay .date {
-            font-weight: 600;
-            color: #fbbf24;
-        }
-
-        /* ——————— 自动播放提示（可选） ——————— */
-        .autoplay-hint {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            z-index: 10;
-            display: none;
-        }
-
-        /* ——————— 移动端优化 ——————— */
-        @media (max-width: 768px) {
-            .video-title { font-size: 20px; }
-            .meta-container { flex-direction: column; align-items: flex-start; }
-            .video-info-area { padding: 16px 0; }
-            .main-content { padding: 0 12px; }
-        }
-        @media (max-width: 480px) {
-            .video-title { font-size: 18px; }
-            .expired-overlay h2 { font-size: 22px; }
-            .expired-overlay p { font-size: 14px; }
-        }
-    </style>
-</head>
-<body>
-    <nav class="top-navbar">
-        <div class="logo">您正在观看</div>
-        <h2>${title}</h2>
-    </nav>
-
-    <div class="main-content">
-        <div class="video-player-container" id="videoArea">
-            <video 
-                class="video-player" 
-                id="videoPlayer"
-                src="${videoUrl}"
-                controls
-                autoplay
-                playsinline
-                preload="metadata"
-                controlsList="nodownload nofullscreen noremoteplayback"
-                oncontextmenu="return false;"
-                disablePictureInPicture
-            >
-                您的浏览器不支持 HTML5 视频。
-            </video>
-            <div class="autoplay-hint" id="autoplayHint">自动播放已启用</div>
-            <div class="expired-overlay" id="expiredOverlay">
-                <h2><i class="fas fa-exclamation-triangle"></i> 内容已过期</h2>
-                <p>该视频的有效期截止于：<span class="date">${expiryDisplay}</span></p>
-                <p>如需继续观看，请联系管理员获取最新内容。</p>
-            </div>
-        </div>
-
-        <div class="video-info-area">
-            <h1 class="video-title">${title}</h1>
-            <div class="meta-container">
-                <span class="category-tag">
-                    <i class="fas fa-video"></i> ${categoryLabel}
-                </span>
-                <span class="expiry-status" style="color: ${expiryDate ? '#dc2626' : '#16a34a'}">
-                    <i class="far fa-calendar-alt"></i> ${expiryDisplay}
-                </span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // ——————— 过期检查 ———————
-        const expiryDateStr = "${expiryDate}"; // 这里传递的是原始的 YYYY-MM-DD 格式
-        const video = document.getElementById('videoPlayer');
-        const expiredOverlay = document.getElementById('expiredOverlay');
-        const videoArea = document.getElementById('videoArea');
-        const autoplayHint = document.getElementById('autoplayHint');
-
-        if (expiryDateStr) {
-            const expiryDate = new Date(expiryDateStr);
-            const expiryTimestamp = expiryDate.getTime() + (24 * 60 * 60 * 1000); // 加一天容错
-            const now = new Date().getTime();
-
-            if (now > expiryTimestamp) {
-                if (video) video.pause();
-                if (expiredOverlay) expiredOverlay.style.display = 'flex';
-                if (video) video.style.visibility = 'hidden';
-            }
-        }
-
-        // ——————— 自动播放 & 防下载 ———————
-        if (video) {
-            // 尝试自动播放
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        if (autoplayHint) autoplayHint.style.display = 'block';
-                        setTimeout(() => {
-                            if (autoplayHint) autoplayHint.style.display = 'none';
-                        }, 3000);
-                    })
-                    .catch(() => {
-                        console.log('自动播放被阻止，需用户交互');
-                    });
-            }
-
-            // 阻止常见下载方式
-            video.addEventListener('contextmenu', e => e.preventDefault());
-            video.addEventListener('dragstart', e => e.preventDefault());
-
-            // 阻止 Ctrl+S / Cmd+S
-            document.addEventListener('keydown', e => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                }
-            });
-
-            // 隐藏右键菜单（额外保险）
-            document.addEventListener('contextmenu', e => {
-                if (e.target === video) e.preventDefault();
-            });
-        }
-    </script>
-</body>
-</html>`;
-
-        // 触发浏览器下载 HTML 文件
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const fileName = `${htmlName}.html`;
-
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        alert(`
-            ✅ HTML 文件已生成并下载: ${fileName}。
-
-            👉 **请手动操作 (由于浏览器安全限制，无法自动创建文件夹):**
-            1. 确保 Git 仓库根目录有 \`video\` 文件夹。
-            2. 如果 \`video/${category}/\` 不存在，请手动创建。
-            3. 将下载的 \`${fileName}\` 移动到本地 \`video/${category}/\` 文件夹中。
-        `);
-    }, []);
+    // **原 downloadHtmlFile 函数已删除**
 
     const handleSubmit = useCallback((e) => {
         e.preventDefault();
@@ -501,7 +179,9 @@ function AdminDashboard() {
             return;
         }
 
-        const generatedLink = `${BASE_PATH}/video/${category}/${htmlName}.html`;
+        // 修改生成的链接：指向一个通用播放器路由，并使用查询参数传递信息
+        // 假设通用播放器路由为 /player，并传入 category 和 name 作为参数
+        const generatedLink = `${BASE_PATH}/player?category=${category}&name=${htmlName}`;
 
         let updatedVideos;
 
@@ -509,7 +189,7 @@ function AdminDashboard() {
             updatedVideos = videos.map(v =>
                 v.id === formData.id ? { ...formData, generatedLink } : v
             );
-            alert('视频信息已更新！请重新下载文件。');
+            alert('视频信息已更新！新的 JSON 列表文件已自动下载，请提交 Git。');
         } else {
             const newVideo = {
                 ...formData,
@@ -517,14 +197,13 @@ function AdminDashboard() {
                 generatedLink
             };
             updatedVideos = [...videos, newVideo];
-            alert('视频信息已新增！');
+            alert('视频信息已新增！新的 JSON 列表文件已自动下载，请提交 Git。');
         }
 
         // 1. 更新状态
         setVideos(updatedVideos);
 
-        // 2. 自动下载 HTML 文件
-        downloadHtmlFile({ ...formData, generatedLink });
+        // **2. 移除自动下载 HTML 文件的逻辑**
 
         // 3. 自动下载最新的 JSON 列表文件 (核心数据保存逻辑)
         downloadJsonFile(updatedVideos);
@@ -532,26 +211,28 @@ function AdminDashboard() {
         // 4. 重置表单并回到第一页
         resetForm();
         setCurrentPage(1);
-    }, [formData, videos, downloadHtmlFile, resetForm]);
+    }, [formData, videos, resetForm]);
 
 
     const handleDelete = useCallback((id) => {
         if (isReadOnlyMode) return;
 
-        if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动从您的 Git 仓库中删除对应的 HTML 文件！同时会自动下载新的 JSON 列表文件，请手动提交！')) {
+        if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动提交最新的 JSON 列表文件！')) {
             const updatedVideos = videos.filter(v => v.id !== id);
             setVideos(updatedVideos);
 
             // 自动下载最新的 JSON 列表文件
             downloadJsonFile(updatedVideos);
 
-            alert('✅ 链接已删除！请记得手动删除本地文件并提交 Git。');
+            alert('✅ 链接已删除！请记得提交最新的 JSON 列表文件到 Git。');
             // 删除后重置到第一页，防止当前页为空
             setCurrentPage(1);
         }
     }, [videos]);
 
     const handleCopy = useCallback((link) => {
+        // 由于链接已修改为通用模板路由，这里不再拼接 '/video/${category}/${htmlName}.html'
+        // 而是直接使用生成的通用路由链接
         let fullLink = `${window.location.origin}${link}`;
 
         navigator.clipboard.writeText(fullLink)
@@ -627,7 +308,7 @@ function AdminDashboard() {
             <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '20px', color: '#333' }}>{formData.id ? '编辑视频信息' : '新增视频信息'}</h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-                <input name="htmlName" value={formData.htmlName} onChange={handleChange} placeholder="HTML链接名 (如: movie-001)" required disabled={isReadOnlyMode} style={inputStyle} />
+                <input name="htmlName" value={formData.htmlName} onChange={handleChange} placeholder="HTML Name" required disabled={isReadOnlyMode} style={inputStyle} />
 
                 <select
                     name="category"
@@ -651,7 +332,7 @@ function AdminDashboard() {
             {!isReadOnlyMode && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
                     <button type="submit" style={{ ...buttonStyle, backgroundColor: formData.id ? '#ffc107' : '#28a745' }}>
-                        {formData.id ? '更新并下载文件 (HTML+JSON)' : '新增并下载文件 (HTML+JSON)'}
+                        {formData.id ? '更新并下载列表文件 (JSON)' : '新增并下载列表文件 (JSON)'}
                     </button>
                     {formData.id && (
                         <button type="button" onClick={resetForm} style={{ ...buttonStyle, backgroundColor: '#6c757d', marginLeft: '10px' }}>
@@ -717,7 +398,7 @@ function AdminDashboard() {
     // 渲染列表 (样式代码省略，保持不变)
     const renderList = () => (
         <div>
-            <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', color: '#333' }}>已生成的 HTML 链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
+            <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', color: '#333' }}>已生成的链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
 
             {/* 搜索过滤区域 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -747,7 +428,7 @@ function AdminDashboard() {
                 <thead>
                     <tr style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
                         <th style={tableHeaderStyle}>标题</th>
-                        <th style={tableHeaderStyle}>链接 (相对路径)</th>
+                        <th style={tableHeaderStyle}>链接 (通用播放器路由)</th>
                         <th style={tableHeaderStyle}>档期分类</th>
                         <th style={tableHeaderStyle}>过期时间</th>
                         <th style={tableHeaderStyle}>操作</th>
@@ -873,7 +554,7 @@ function AdminDashboard() {
             {renderList()}
 
             <p style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333' }}>
-                <b>分类代码列表: </b>请确保新增/编辑时使用以下伪代码：
+                <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
                 <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
                     {Object.entries(CATEGORY_MAP).map(([label, value]) => (
                         <li key={value}>{label} 对应代码: <b>{value}</b></li>

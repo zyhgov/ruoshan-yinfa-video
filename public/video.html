@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitle">视频播放页 | 正在加载...</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css ">
+
+</head>
+<body>
+  <div id="loading-message">正在加载视频数据...</div>
+
+  <nav class="top-navbar">
+    <div class="logo">您正在观看</div>
+    <h2 id="navbarTitle"></h2>
+  </nav>
+
+  <div class="main-content">
+    <div class="video-player-container" id="videoArea">
+      <video
+        class="video-player"
+        id="videoPlayer"
+        src=""
+        controls
+        autoplay
+        playsinline
+        preload="metadata"
+        controlsList="nodownload nofullscreen noremoteplayback"
+        oncontextmenu="return false;"
+        disablePictureInPicture
+      >
+        您的浏览器不支持 HTML5 视频。
+      </video>
+      <div class="autoplay-hint" id="autoplayHint">自动播放已启用</div>
+      <div class="expired-overlay" id="expiredOverlay">
+        <h2><i class="fas fa-exclamation-triangle"></i> 内容已过期</h2>
+        <p>该视频的有效期截止于：<span class="date" id="expiryDisplayDate"></span></p>
+        <p>如需继续观看，请联系管理员获取最新内容。</p>
+      </div>
+    </div>
+
+<div class="video-info-area">
+  <h1 class="video-title" id="mainVideoTitle"></h1>
+  <div class="meta-container">
+    <span class="category-tag">
+      <i class="fas fa-video"></i>
+      <span id="categoryLabel"></span>
+    </span>
+    <span class="expiry-status" id="expiryStatus">
+      <i class="far fa-calendar-alt"></i>
+      <span id="expiryText"></span>
+    </span>
+  </div>
+  <!-- 👇 新增：违规内容举报链接 -->
+  <div class="report-section" style="margin-top: 20px; text-align: center;">
+    <a 
+      href="https://forms.office.com/r/7ipB7GPS9T" 
+      target="_blank"
+      rel="noopener noreferrer"
+      style="color: #dc2626; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;"
+    >
+      <i class="fas fa-exclamation-circle"></i>
+      举报违规内容
+    </a>
+  </div>
+</div>
+  </div>
+
+  <script>
+function getUrlParameter(name){name=name.replace(/[\[]/,'\\[').replace(/[\]]/,'\\]');const regex=new RegExp('[\\?&]'+name+'=([^&#]*)');const results=regex.exec(location.search);return results===null?'':decodeURIComponent(results[1].replace(/\+/g,' '))};const CATEGORY_MAP={"qjqf":"奇酒奇方",};async function loadVideo(){const videoId=getUrlParameter('id');const loadingMessage=document.getElementById('loading-message');if(!videoId){loadingMessage.innerText="错误：URL中缺少视频ID参数 (?id=xxx)。";return}try{const response=await fetch('/video_list.json');if(!response.ok){throw new Error("加载视频列表失败");}const videoList=await response.json();const videoData=videoList.find(item=>item.id===videoId);if(!videoData){loadingMessage.innerText=`错误：ID为"${videoId}"的视频未找到。`;return}const{title,videoUrl,category,expiryDate}=videoData;const categoryLabel=CATEGORY_MAP[category]||category;let expiryDisplay=expiryDate?`有效期至${expiryDate}`:'长期有效';let isExpired=false;if(expiryDate){const expiryDateObj=new Date(expiryDate);expiryDateObj.setHours(23,59,59,999);const now=new Date();if(now.getTime()>expiryDateObj.getTime()){isExpired=true;expiryDisplay=`已于${expiryDate}过期`}}document.getElementById('pageTitle').innerText=`${title}|${categoryLabel}`;document.getElementById('navbarTitle').innerText=title;document.getElementById('mainVideoTitle').innerText=title;document.getElementById('categoryLabel').innerText=categoryLabel;const expiryStatusElement=document.getElementById('expiryStatus');expiryStatusElement.querySelector('#expiryText').innerText=expiryDisplay;if(isExpired){expiryStatusElement.classList.add('expired');document.getElementById('expiryDisplayDate').innerText=expiryDate}else if(expiryDate){expiryStatusElement.classList.add('valid')}const videoPlayer=document.getElementById('videoPlayer');videoPlayer.src=videoUrl;document.getElementById('videoArea').classList.add('loaded');if(isExpired){videoPlayer.pause();document.getElementById('expiredOverlay').style.display='flex';videoPlayer.style.visibility='hidden'}else{const autoplayHint=document.getElementById('autoplayHint');const playPromise=videoPlayer.play();if(playPromise!==undefined){playPromise.then(()=>{if(autoplayHint)autoplayHint.style.display='block';setTimeout(()=>{if(autoplayHint)autoplayHint.style.display='none'},3000)}).catch(()=>{console.log('自动播放被阻止，需用户交互')})}}videoPlayer.addEventListener('contextmenu',e=>e.preventDefault());videoPlayer.addEventListener('dragstart',e=>e.preventDefault());document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault()}})}catch(error){console.error('加载视频数据时发生错误:',error);loadingMessage.innerText=`加载失败，请检查网络或联系管理员。(${error.message})`;return}finally{if(loadingMessage)loadingMessage.style.display='none'}}document.addEventListener('DOMContentLoaded',loadVideo);
+  </script>
+</body>
+</html>
