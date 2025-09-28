@@ -99,14 +99,20 @@ const PlayerPage = () => {
             expiryDisplay,
             videoUrl: videoData.videoUrl,
             title: videoData.title,
+            expiryDateStr: videoData.expiryDate,
         };
     }, [videoData]);
-
+// 👇 新增：动态设置页面标题
+useEffect(() => {
+  if (videoInfo.title && videoInfo.categoryLabel) {
+    document.title = `${videoInfo.title} | ${videoInfo.categoryLabel}`;
+  }
+}, [videoInfo.title, videoInfo.categoryLabel]);
     // ----------------------------------------
     // 渲染加载中、错误或播放页
     // ----------------------------------------
     if (loading) {
-        return <div style={{ textAlign: 'center', padding: '50px' }}>视频列表加载中...</div>;
+        return <div style={{ textAlign: 'center', padding: '50px' }}>视频信息加载中...</div>;
     }
 
     if (error) {
@@ -312,7 +318,7 @@ const styles = {
     padding: '24px 0 32px',
   },
   videoTitle: {
-    fontSize: '24px',
+    fontSize: '30px',
     fontWeight: 700,
     color: '#1e293b',
     marginBottom: '12px',
