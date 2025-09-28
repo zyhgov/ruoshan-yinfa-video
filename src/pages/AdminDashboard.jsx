@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -6,8 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 // 核心配置与常量
 // -------------------------------------------------------------------------
 const BASE_PATH = ''; 
+// 检查当前环境是否为只读模式 (非 localhost 视为线上环境)
 const isReadOnlyMode = !window.location.host.includes('localhost');
-const STORAGE_KEY = 'rsvideo_video_list';
 
 // 固定的档期分类列表
 const CATEGORY_MAP = {
@@ -24,26 +24,51 @@ const CATEGORY_OPTIONS = [
 ];
 
 // ----------------------------------------------------
-// 辅助函数：Local Storage 数据读写
+// 辅助函数：数据读写（基于 JSON 文件）
 // ----------------------------------------------------
-const loadVideos = () => {
+
+// 异步加载视频列表数据
+const loadVideos = async () => {
+  // 尝试从项目根目录的 video_list.json 加载数据
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    const parsedData = data ? JSON.parse(data) : [];
-    return Array.isArray(parsedData) ? parsedData : [];
+    const response = await fetch('/video_list.json'); 
+    
+    // 如果文件不存在或加载失败 (如第一次运行)，返回空数组
+    if (!response.ok) {
+      console.warn("未找到 /video_list.json 文件或加载失败。将使用空列表。");
+      return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error loading videos from localStorage:", error);
+    console.error("加载 video_list.json 失败:", error);
     return []; 
   }
 };
 
-const saveVideos = (videos) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
-  } catch (error) {
-    console.error("Error saving videos to localStorage:", error);
-    alert("警告：本地存储失败，您的数据可能未保存！");
-  }
+// 触发 JSON 文件下载（用于保存数据）
+const downloadJsonFile = (data) => {
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fileName = 'video_list.json'; 
+
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert(`
+        📢 列表数据文件已生成并下载: ${fileName}。
+
+        👉 **重要！请手动操作：**
+        1. 将下载的 \`${fileName}\` **移动到您 Git 仓库的根目录下**。
+        2. 将此文件与您的代码一起提交并推送到 GitHub！
+    `);
 };
 
 
@@ -53,7 +78,10 @@ const saveVideos = (videos) => {
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [videos, setVideos] = useState(loadVideos);
+  // 状态用于存储视频列表和加载状态
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); 
   const [formData, setFormData] = useState({
@@ -65,8 +93,19 @@ function AdminDashboard() {
     expiryDate: '',
   });
 
+  // 使用 useEffect 钩子在组件加载时异步获取数据
+  useEffect(() => {
+    loadVideos().then(data => {
+      setVideos(data);
+      setLoading(false);
+    }).catch(() => {
+        setLoading(false);
+    });
+  }, []);
+
+
   // ----------------------------------------
-  // 业务逻辑函数 (省略不变的代码块)
+  // 业务逻辑函数
   // ----------------------------------------
   
   const handleLogout = useCallback(() => {
@@ -85,21 +124,13 @@ function AdminDashboard() {
     setFormData(prev => ({ ...prev, [name]: value }));
   }, []);
 
-  const handleSearchChange = useCallback((e) => {
-    setSearchTerm(e.target.value);
-  }, []);
-
-  const handleCategoryFilterChange = useCallback((e) => {
-    setSelectedCategory(e.target.value);
-  }, []);
-  
   const handleEdit = useCallback((video) => {
     if (isReadOnlyMode) return;
     setFormData(video);
   }, []);
 
 
-  // 文件下载生成逻辑 (重点更新部分：全宽视频 + 顶部导航栏)
+  // 文件下载生成逻辑 (全宽视频 + 顶部导航栏)
   const downloadHtmlFile = useCallback((data) => {
     const { title, videoUrl, htmlName, category, expiryDate } = data;
 
@@ -399,7 +430,7 @@ const htmlContent = `<!DOCTYPE html>
 </body>
 </html>`;
 
-    // 触发浏览器下载
+    // 触发浏览器下载 HTML 文件
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -413,13 +444,12 @@ const htmlContent = `<!DOCTYPE html>
     URL.revokeObjectURL(url);
     
     alert(`
-        ✅ 文件已生成并下载: ${fileName}。
+        ✅ HTML 文件已生成并下载: ${fileName}。
 
         👉 **请手动操作 (由于浏览器安全限制，无法自动创建文件夹):**
         1. 确保 Git 仓库根目录有 \`video\` 文件夹。
         2. 如果 \`video/${category}/\` 不存在，请手动创建。
         3. 将下载的 \`${fileName}\` 移动到本地 \`video/${category}/\` 文件夹中。
-        4. 最后，使用 Git 提交并推送。
     `);
   }, []);
 
@@ -433,7 +463,6 @@ const htmlContent = `<!DOCTYPE html>
         return;
     }
     
-    // 检查 category 是否在常量列表中
     if (!Object.values(CATEGORY_MAP).includes(category)) {
         alert(`档期分类代码 ${category} 无效！请使用预设的分类代码。`);
         return;
@@ -458,10 +487,15 @@ const htmlContent = `<!DOCTYPE html>
         alert('视频信息已新增！');
     }
 
+    // 1. 更新状态
     setVideos(updatedVideos);
-    saveVideos(updatedVideos);
     
+    // 2. 自动下载 HTML 文件
     downloadHtmlFile({ ...formData, generatedLink });
+    
+    // 3. 自动下载最新的 JSON 列表文件 (核心数据保存逻辑)
+    downloadJsonFile(updatedVideos);
+    
     resetForm();
   }, [formData, videos, downloadHtmlFile, resetForm]);
 
@@ -469,10 +503,13 @@ const htmlContent = `<!DOCTYPE html>
   const handleDelete = useCallback((id) => {
     if (isReadOnlyMode) return;
 
-    if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除本地记录，你需要手动从您的 Git 仓库中删除对应的 HTML 文件！')) {
+    if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动从您的 Git 仓库中删除对应的 HTML 文件！同时会自动下载新的 JSON 列表文件，请手动提交！')) {
         const updatedVideos = videos.filter(v => v.id !== id);
         setVideos(updatedVideos);
-        saveVideos(updatedVideos);
+        
+        // 自动下载最新的 JSON 列表文件
+        downloadJsonFile(updatedVideos);
+        
         alert('✅ 链接已删除！请记得手动删除本地文件并提交 Git。');
     }
   }, [videos]);
@@ -485,8 +522,17 @@ const htmlContent = `<!DOCTYPE html>
       .catch(err => console.error('复制失败:', err));
   }, []);
 
+
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+  }, []);
+
+  const handleCategoryFilterChange = useCallback((e) => {
+    setSelectedCategory(e.target.value);
+  }, []);
+  
   // ----------------------------------------
-  // 数据计算与渲染 (保持不变)
+  // 数据计算与渲染
   // ----------------------------------------
   
   const filteredVideos = useMemo(() => {
@@ -503,7 +549,16 @@ const htmlContent = `<!DOCTYPE html>
     return result;
   }, [videos, searchTerm, selectedCategory]);
 
-  // 渲染表单
+  if (loading) {
+      return (
+          <div style={{ padding: '50px', textAlign: 'center', fontSize: '20px' }}>
+              正在加载视频列表数据... 请确保项目根目录有 video_list.json 文件。
+          </div>
+      );
+  }
+
+
+  // 渲染表单 (样式代码省略，保持不变)
   const renderForm = () => (
     <form onSubmit={handleSubmit} style={{ 
         border: '1px solid #ddd', 
@@ -540,7 +595,7 @@ const htmlContent = `<!DOCTYPE html>
       {!isReadOnlyMode && (
         <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
             <button type="submit" style={{ ...buttonStyle, backgroundColor: formData.id ? '#ffc107' : '#28a745' }}>
-                {formData.id ? '更新并下载文件' : '新增并下载文件'}
+                {formData.id ? '更新并下载文件 (HTML+JSON)' : '新增并下载文件 (HTML+JSON)'}
             </button>
             {formData.id && (
                 <button type="button" onClick={resetForm} style={{ ...buttonStyle, backgroundColor: '#6c757d', marginLeft: '10px' }}>
@@ -554,7 +609,7 @@ const htmlContent = `<!DOCTYPE html>
     </form>
   );
 
-  // 渲染列表
+  // 渲染列表 (样式代码省略，保持不变)
   const renderList = () => (
     <div>
       <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', color: '#333' }}>已生成的 HTML 链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
@@ -698,6 +753,15 @@ const htmlContent = `<!DOCTYPE html>
                     <li key={value}>{label} 对应代码: **{value}**</li>
                 ))}
             </ul>
+        <br/> 2. **文件放置:** 请手动将生成的 HTML 文件放置在本地 Git 仓库的 **`video/档期分类/`** 目录下，并将下载的 **`video_list.json`** 移动到**项目根目录**。
+        <br/> 3. **Cloudflare Pages 修复 (重要):** 为了让视频链接不返回 404，请确保在 **项目根目录**下创建 **`_redirects`** 文件，并包含以下内容：
+        <pre style={{ backgroundColor: '#fff', padding: '10px', border: '1px solid #ddd', overflowX: 'auto' }}>
+            <code>
+                # 允许直接访问 video 文件夹下的所有 HTML 文件<br/>
+                /video/* /video/:splat    200
+            </code>
+        </pre>
+        <br/> **最后，请将所有更改过的文件和下载的 JSON 文件一起提交并推送到 GitHub。**
       </p>
     </div>
   );
