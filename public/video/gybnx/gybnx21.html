@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国医伴你行 第21期 | 国医伴你行</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 全局重置与字体 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            height: 100%;
+            background-color: #f1f3f5;
+            font-family: 'HarmonyOS_Regular', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            color: #222;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ——————— 顶部导航栏 ——————— */
+        .top-navbar {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 12px 20px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .top-navbar .logo {
+            font-size: 18px;
+            font-weight: 700;
+            margin-right: 15px;
+            color: #60a5fa;
+        }
+        .top-navbar h2 {
+            font-size: 16px;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 80vw;
+        }
+        @media (max-width: 600px) {
+            .top-navbar { padding: 10px 15px; }
+            .top-navbar h2 { font-size: 14px; }
+            .top-navbar .logo { font-size: 16px; margin-right: 10px; }
+        }
+
+        /* ——————— 主内容区 ——————— */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* ——————— 视频播放区域 ——————— */
+        .video-player-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 16px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+        .video-player {
+            width: 100%;
+            display: block;
+            outline: none;
+        }
+
+        /* ——————— 视频信息区 ——————— */
+        .video-info-area {
+            padding: 24px 0 32px;
+        }
+        .video-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        .meta-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .category-tag {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .expiry-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #16a34a; /* 默认显示绿色 */
+            font-weight: 600;
+        }
+        .expiry-status i {
+            font-size: 16px;
+        }
+
+        /* ——————— 过期遮罩层 ——————— */
+        .expired-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.92);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #f87171;
+            z-index: 30;
+            padding: 20px;
+        }
+        .expired-overlay h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #ef4444;
+        }
+        .expired-overlay p {
+            font-size: 16px;
+            margin: 6px 0;
+            color: #fca5a5;
+            max-width: 500px;
+        }
+        .expired-overlay .date {
+            font-weight: 600;
+            color: #fbbf24;
+        }
+
+        /* ——————— 自动播放提示（可选） ——————— */
+        .autoplay-hint {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 10;
+            display: none;
+        }
+
+        /* ——————— 移动端优化 ——————— */
+        @media (max-width: 768px) {
+            .video-title { font-size: 20px; }
+            .meta-container { flex-direction: column; align-items: flex-start; }
+            .video-info-area { padding: 16px 0; }
+            .main-content { padding: 0 12px; }
+        }
+        @media (max-width: 480px) {
+            .video-title { font-size: 18px; }
+            .expired-overlay h2 { font-size: 22px; }
+            .expired-overlay p { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-navbar">
+        <div class="logo">您正在观看</div>
+        <h2>国医伴你行 第21期</h2>
+    </nav>
+
+    <div class="main-content">
+        <div class="video-player-container" id="videoArea">
+            <video 
+                class="video-player" 
+                id="videoPlayer"
+                src="https://oss.rsjk.org.cn/ruo-shan/video/04652ee3-b9c6-4f3b-8d98-52a65328ee60.mp4"
+                controls
+                autoplay
+                playsinline
+                preload="metadata"
+                controlsList="nodownload nofullscreen noremoteplayback"
+                oncontextmenu="return false;"
+                disablePictureInPicture
+            >
+                您的浏览器不支持 HTML5 视频。
+            </video>
+            <div class="autoplay-hint" id="autoplayHint">自动播放已启用</div>
+            <div class="expired-overlay" id="expiredOverlay">
+                <h2><i class="fas fa-exclamation-triangle"></i> 内容已过期</h2>
+                <p>该视频的有效期截止于：<span class="date">永久有效</span></p>
+                <p>如需继续观看，请联系管理员获取最新内容。</p>
+            </div>
+        </div>
+
+        <div class="video-info-area">
+            <h1 class="video-title">国医伴你行 第21期</h1>
+            <div class="meta-container">
+                <span class="category-tag">
+                    <i class="fas fa-video"></i> 国医伴你行
+                </span>
+                <span class="expiry-status">
+                    <i class="far fa-calendar-alt"></i> 永久有效
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ——————— 过期检查 ———————
+        const expiryDateStr = "永久有效"; 
+        const video = document.getElementById('videoPlayer');
+        const expiredOverlay = document.getElementById('expiredOverlay');
+        const videoArea = document.getElementById('videoArea');
+        const autoplayHint = document.getElementById('autoplayHint');
+
+        if (expiryDateStr && expiryDateStr !== '永久有效') {
+            const expiryDate = new Date(expiryDateStr);
+            // 确保日期是有效的，并且加上一天的容错期
+            const expiryTimestamp = expiryDate.getTime() + (24 * 60 * 60 * 1000); 
+            const now = new Date().getTime();
+
+            if (now > expiryTimestamp) {
+                if (video) video.pause();
+                if (expiredOverlay) expiredOverlay.style.display = 'flex';
+                if (video) video.style.visibility = 'hidden';
+            }
+        }
+
+        // ——————— 自动播放 & 防下载 ———————
+        if (video) {
+            // 尝试自动播放
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        if (autoplayHint) autoplayHint.style.display = 'block';
+                        setTimeout(() => {
+                            if (autoplayHint) autoplayHint.style.display = 'none';
+                        }, 3000);
+                    })
+                    .catch(() => {
+                        console.log('自动播放被阻止，需用户交互');
+                    });
+            }
+
+            // 阻止常见下载方式
+            video.addEventListener('contextmenu', e => e.preventDefault());
+            video.addEventListener('dragstart', e => e.preventDefault());
+
+            // 阻止 Ctrl+S / Cmd+S
+            document.addEventListener('keydown', e => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                }
+            });
+
+            // 隐藏右键菜单（额外保险）
+            document.addEventListener('contextmenu', e => {
+                if (e.target === video) e.preventDefault();
+            });
+        }
+    </script>
+</body>
+</html>
