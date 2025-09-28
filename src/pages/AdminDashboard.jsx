@@ -746,22 +746,12 @@ const htmlContent = `<!DOCTYPE html>
       {renderList()}
       
       <p style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333' }}>
-        **部署与链接指南：**
-        <br/> 1. **分类代码列表:** 请确保新增/编辑时使用以下代码：
+        <b>分类代码列表: </b>请确保新增/编辑时使用以下伪代码：
             <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
                 {Object.entries(CATEGORY_MAP).map(([label, value]) => (
-                    <li key={value}>{label} 对应代码: **{value}**</li>
+                    <li key={value}>{label} 对应代码: <b>{value}</b></li>
                 ))}
             </ul>
-        <br/> 2. **文件放置:** 请手动将生成的 HTML 文件放置在本地 Git 仓库的 **`video/档期分类/`** 目录下，并将下载的 **`video_list.json`** 移动到**项目根目录**。
-        <br/> 3. **Cloudflare Pages 修复 (重要):** 为了让视频链接不返回 404，请确保在 **项目根目录**下创建 **`_redirects`** 文件，并包含以下内容：
-        <pre style={{ backgroundColor: '#fff', padding: '10px', border: '1px solid #ddd', overflowX: 'auto' }}>
-            <code>
-                # 允许直接访问 video 文件夹下的所有 HTML 文件<br/>
-                /video/* /video/:splat    200
-            </code>
-        </pre>
-        <br/> **最后，请将所有更改过的文件和下载的 JSON 文件一起提交并推送到 GitHub。**
       </p>
     </div>
   );

@@ -68,7 +68,7 @@ function Login() {
             登 录
           </button>
 
-          <p style={styles.note}>登录测试账号: admin / admin</p>
+          <p style={styles.note}>上线环境无法编辑</p>
         </form>
       </div>
     </div>
