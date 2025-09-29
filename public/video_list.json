@@ -4453,5 +4453,14 @@
     "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/cb3cb503-45fb-43df-81d4-d1f9561100b1.mp4",
     "expiryDate": "2025-10-01",
     "generatedLink": "/player?category=bsjkb&name=bsjkb19"
+  },
+  {
+    "id": "2ab23957-c0d7-43ae-ba6f-67bc36f5188a",
+    "htmlName": "bsjkb20",
+    "category": "bsjkb",
+    "title": "【百岁健康班】 第20期",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/01ff4dd3-ee87-452c-84e1-848c3449df27.mp4",
+    "expiryDate": "2025-10-03",
+    "generatedLink": "/player?category=bsjkb&name=bsjkb20"
   }
 ]
