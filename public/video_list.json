@@ -4444,5 +4444,14 @@
     "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/2b39383f-e9e1-42c9-940a-f69bfc97cd8b.mp4",
     "expiryDate": "",
     "generatedLink": "/player?category=gybnx&name=gybnx116"
+  },
+  {
+    "id": "46afe438-1967-4480-9eee-bb08cb947507",
+    "htmlName": "bsjkb19",
+    "category": "bsjkb",
+    "title": "【百岁健康班】第19期",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/cb3cb503-45fb-43df-81d4-d1f9561100b1.mp4",
+    "expiryDate": "2025-10-01",
+    "generatedLink": "/player?category=bsjkb&name=bsjkb19"
   }
 ]
