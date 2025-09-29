@@ -2,7 +2,14 @@
 
 @font-face {
   font-family: 'SF Pro Display';
-  src: url('/fonts/sf-pro-display_semibold.woff2') format('woff2');
+  src: url('/fonts/PingFangSC-Semibold.woff2') format('woff2');
+  font-weight: 600; /* semibold 对应 600 */
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MiSans-Semibold';
+  src: url('/fonts/MiSans-Semibold.woff2') format('woff2');
   font-weight: 600; /* semibold 对应 600 */
   font-style: normal;
   font-display: swap;
@@ -11,7 +18,7 @@
 
 body {
     margin: 0;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'SF Pro Display','MiSans-Semibold', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 /* src/index.css 或 App.css */
 input:focus {

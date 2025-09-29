@@ -26,22 +26,20 @@ const CATEGORY_OPTIONS = [
 // 分页选项
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
+// 字体定义
+const FONT_FAMILY = 'MiSans-Semibold';
+
 // ----------------------------------------------------
 // 辅助函数：数据读写（基于 JSON 文件）
 // ----------------------------------------------------
 
-// 异步加载视频列表数据
 const loadVideos = async () => {
-    // 尝试从项目根目录的 video_list.json 加载数据
     try {
         const response = await fetch('/video_list.json');
-
-        // 如果文件不存在或加载失败 (如第一次运行)，返回空数组
         if (!response.ok) {
             console.warn("未找到 /video_list.json 文件或加载失败。将使用空列表。");
             return [];
         }
-
         const data = await response.json();
         return Array.isArray(data) ? data : [];
     } catch (error) {
@@ -50,7 +48,6 @@ const loadVideos = async () => {
     }
 };
 
-// 触发 JSON 文件下载（用于保存数据）
 const downloadJsonFile = (data) => {
     const jsonContent = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json' });
@@ -68,17 +65,14 @@ const downloadJsonFile = (data) => {
     alert(`
         📢 列表数据文件已生成并下载: ${fileName}。
 
-        👉 **重要！请手动操作：**
-        1. 将下载的 \`${fileName}\` **移动到您 Git 仓库的根目录下**。
+        👉 重要！请手动操作：
+        1. 将下载的 \`${fileName}\` 移动到您 Git 仓库的根目录下。
         2. 将此文件与您的代码一起提交并推送到 GitHub！
     `);
 };
 
 /**
  * 搜索关键词高亮辅助函数
- * @param {string} text 原始文本
- * @param {string} highlight 关键词
- * @returns {JSX.Element} 带有 <mark> 标签的 React 元素
  */
 const highlightText = (text, highlight) => {
     if (!highlight) {
@@ -86,7 +80,7 @@ const highlightText = (text, highlight) => {
     }
     const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
     return (
-        <>
+        <span key={`highlight-${text}`}>
             {parts.map((part, index) =>
                 part.toLowerCase() === highlight.toLowerCase() ? (
                     <mark key={index} style={{ backgroundColor: '#ffcc00', padding: '0 2px', borderRadius: '2px' }}>
@@ -96,8 +90,209 @@ const highlightText = (text, highlight) => {
                     part
                 )
             )}
-        </>
+        </span>
     );
+};
+
+// ----------------------------------------------------
+// 辅助函数：响应式 Hook
+// ----------------------------------------------------
+
+const useIsMobile = (maxWidth = 768) => {
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= maxWidth);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= maxWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [maxWidth]);
+
+    return isMobile;
+};
+
+// ----------------------------------------------------
+// 样式定义
+// ----------------------------------------------------
+
+const styles = {
+    // === 基础布局样式 ===
+    pageContainer: {
+        padding: '20px',
+        maxWidth: '1400px',
+        margin: '0 auto',
+        backgroundColor: '#f8f9fa',
+        minHeight: '100vh',
+        fontFamily: FONT_FAMILY,
+        boxSizing: 'border-box',
+    },
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '30px',
+        borderBottom: '2px solid #e9ecef',
+        paddingBottom: '15px',
+    },
+    headerTitle: {
+        color: '#212529',
+        fontWeight: 600,
+        fontSize: '28px',
+    },
+    headerSubtitle: {
+        fontSize: '16px',
+        fontWeight: 'normal',
+        color: '#6c757d',
+        marginLeft: '10px',
+    },
+
+    // === 表单/卡片基础样式 (作为函数定义) ===
+    card: (isReadOnly) => ({
+        border: 'none',
+        padding: '25px',
+        borderRadius: '12px',
+        marginBottom: '30px',
+        backgroundColor: isReadOnly ? '#f9f9f9' : '#fff',
+        boxShadow: '0 6px 16px rgba(0, 0, 0, 0.08)',
+        transition: 'box-shadow 0.3s',
+    }),
+    formGrid: (isMobile) => ({
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '20px',
+    }),
+    formTitle: {
+        borderBottom: '2px solid #007bff',
+        paddingBottom: '10px',
+        marginBottom: '20px',
+        color: '#333',
+        fontWeight: 600,
+        fontSize: '22px',
+    },
+    input: {
+        padding: '12px',
+        border: '1px solid #ced4da',
+        borderRadius: '8px',
+        fontSize: '15px',
+        boxSizing: 'border-box',
+        width: '100%',
+        minWidth: '50px',
+        fontFamily: FONT_FAMILY,
+        transition: 'border-color 0.2s',
+    },
+
+    // === 按钮样式 ===
+    buttonBase: {
+        padding: '10px 18px',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontSize: '15px',
+        fontWeight: 600,
+        transition: 'background-color 0.2s, transform 0.1s',
+        minWidth: '100px',
+    },
+    buttonAction: (color) => ({
+        padding: '5px 10px',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '12px',
+        backgroundColor: color,
+        fontWeight: 600,
+        transition: 'opacity 0.2s',
+    }),
+    buttonPrimary: { backgroundColor: '#007bff' },
+    buttonSuccess: { backgroundColor: '#28a745' },
+    buttonWarning: { backgroundColor: '#ffc107', color: '#333' },
+    buttonDanger: { backgroundColor: '#dc3545' },
+    buttonSecondary: { backgroundColor: '#6c757d' },
+
+    // === 列表/表格样式 ===
+    listHeader: {
+        borderBottom: '2px solid #007bff',
+        paddingBottom: '10px',
+        color: '#333',
+        fontWeight: 600,
+        fontSize: '22px',
+        marginBottom: '20px',
+    },
+    filterContainer: (isMobile) => ({
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: '10px',
+        marginBottom: '20px',
+    }),
+    tableContainer: (isMobile) => ({
+        overflowX: isMobile ? 'scroll' : 'visible',
+        marginTop: '10px',
+        paddingBottom: '10px',
+    }),
+    table: {
+        width: '100%',
+        minWidth: '700px', // 确保在移动设备上可以水平滚动
+        borderCollapse: 'separate',
+        borderSpacing: '0 10px',
+    },
+    tableHeader: {
+        padding: '15px 10px',
+        textAlign: 'center',
+        fontSize: '14px',
+        color: '#6c757d',
+        fontWeight: 600,
+        backgroundColor: '#e9ecef',
+    },
+    tableRow: {
+        backgroundColor: '#fff',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+        transition: 'box-shadow 0.2s',
+    },
+    tableCell: {
+        padding: '15px 10px',
+        textAlign: 'center',
+        fontSize: '14px',
+        wordBreak: 'break-word',
+    },
+
+    // === 移动端卡片列表样式 (临时基础定义) ===
+    mobileListItem: {
+        marginBottom: '15px',
+        padding: '15px',
+    },
+    mobileTitle: {
+        fontSize: '18px',
+        fontWeight: 600,
+        color: '#007bff',
+        marginBottom: '8px',
+        textAlign: 'left',
+    },
+    mobileMetaItem: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        width: '100%',
+        fontSize: '14px',
+        color: '#6c757d',
+        marginBottom: '5px',
+        paddingBottom: '5px',
+        borderBottom: '1px dashed #eee',
+    },
+    mobileActions: {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '10px',
+        justifyContent: 'flex-start',
+        width: '100%',
+    },
+};
+
+// ----------------------------------------------------
+// 修正错误：在 styles 对象初始化完成后，进行依赖属性的合并
+// ----------------------------------------------------
+styles.mobileListItem = {
+    ...styles.card(false), // 修正：在 styles 对象定义完成后引用 styles.card
+    ...styles.mobileListItem
 };
 
 
@@ -107,6 +302,8 @@ const highlightText = (text, highlight) => {
 
 function AdminDashboard() {
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
+    
     // 状态用于存储视频列表和加载状态
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -127,7 +324,9 @@ function AdminDashboard() {
         expiryDate: '',
     });
 
-    // 使用 useEffect 钩子在组件加载时异步获取数据
+    // ----------------------------------------
+    // 数据加载
+    // ----------------------------------------
     useEffect(() => {
         loadVideos().then(data => {
             setVideos(data);
@@ -162,8 +361,6 @@ function AdminDashboard() {
         setFormData(video);
     }, []);
 
-    // **原 downloadHtmlFile 函数已删除**
-
     const handleSubmit = useCallback((e) => {
         e.preventDefault();
         if (isReadOnlyMode) return;
@@ -179,8 +376,6 @@ function AdminDashboard() {
             return;
         }
 
-        // 修改生成的链接：指向一个通用播放器路由，并使用查询参数传递信息
-        // 假设通用播放器路由为 /player，并传入 category 和 name 作为参数
         const generatedLink = `${BASE_PATH}/player?category=${category}&name=${htmlName}`;
 
         let updatedVideos;
@@ -200,15 +395,8 @@ function AdminDashboard() {
             alert('视频信息已新增！新的 JSON 列表文件已自动下载，请提交 Git。');
         }
 
-        // 1. 更新状态
         setVideos(updatedVideos);
-
-        // **2. 移除自动下载 HTML 文件的逻辑**
-
-        // 3. 自动下载最新的 JSON 列表文件 (核心数据保存逻辑)
         downloadJsonFile(updatedVideos);
-
-        // 4. 重置表单并回到第一页
         resetForm();
         setCurrentPage(1);
     }, [formData, videos, resetForm]);
@@ -220,19 +408,13 @@ function AdminDashboard() {
         if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动提交最新的 JSON 列表文件！')) {
             const updatedVideos = videos.filter(v => v.id !== id);
             setVideos(updatedVideos);
-
-            // 自动下载最新的 JSON 列表文件
             downloadJsonFile(updatedVideos);
-
             alert('✅ 链接已删除！请记得提交最新的 JSON 列表文件到 Git。');
-            // 删除后重置到第一页，防止当前页为空
             setCurrentPage(1);
         }
     }, [videos]);
 
     const handleCopy = useCallback((link) => {
-        // 由于链接已修改为通用模板路由，这里不再拼接 '/video/${category}/${htmlName}.html'
-        // 而是直接使用生成的通用路由链接
         let fullLink = `${window.location.origin}${link}`;
 
         navigator.clipboard.writeText(fullLink)
@@ -243,17 +425,17 @@ function AdminDashboard() {
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
-        setCurrentPage(1); // 搜索时重置到第一页
+        setCurrentPage(1);
     }, []);
 
     const handleCategoryFilterChange = useCallback((e) => {
         setSelectedCategory(e.target.value);
-        setCurrentPage(1); // 筛选时重置到第一页
+        setCurrentPage(1);
     }, []);
     
     const handlePageSizeChange = useCallback((e) => {
         setPageSize(Number(e.target.value));
-        setCurrentPage(1); // 改变每页大小时重置到第一页
+        setCurrentPage(1);
     }, []);
 
     const goToPage = useCallback((page) => {
@@ -288,27 +470,20 @@ function AdminDashboard() {
 
     if (loading) {
         return (
-            <div style={{ padding: '50px', textAlign: 'center', fontSize: '20px' }}>
-                正在加载视频列表数据... 请确保项目根目录有 video_list.json 文件。
+            <div style={{ padding: '50px', textAlign: 'center', fontSize: '20px', fontFamily: FONT_FAMILY }}>
+                正在动态加载视频列表数据... 
             </div>
         );
     }
 
 
-    // 渲染表单 (样式代码省略，保持不变)
+    // 渲染表单
     const renderForm = () => (
-        <form onSubmit={handleSubmit} style={{
-            border: '1px solid #ddd',
-            padding: '20px',
-            borderRadius: '8px',
-            marginBottom: '30px',
-            backgroundColor: isReadOnlyMode ? '#f9f9f9' : '#fff',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
-        }}>
-            <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '20px', color: '#333' }}>{formData.id ? '编辑视频信息' : '新增视频信息'}</h3>
+        <form onSubmit={handleSubmit} style={styles.card(isReadOnlyMode)}>
+            <h3 style={styles.formTitle}>{formData.id ? '编辑视频信息' : '新增视频信息'}</h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-                <input name="htmlName" value={formData.htmlName} onChange={handleChange} placeholder="HTML Name" required disabled={isReadOnlyMode} style={inputStyle} />
+            <div style={styles.formGrid(isMobile)}>
+                <input name="htmlName" value={formData.htmlName} onChange={handleChange} placeholder="HTML Name *" required disabled={isReadOnlyMode} style={styles.input} />
 
                 <select
                     name="category"
@@ -316,7 +491,7 @@ function AdminDashboard() {
                     onChange={handleChange}
                     required
                     disabled={isReadOnlyMode}
-                    style={inputStyle}
+                    style={styles.input}
                 >
                     <option value="" disabled>选择档期分类代码 *</option>
                     {Object.entries(CATEGORY_MAP).map(([label, value]) => (
@@ -324,35 +499,39 @@ function AdminDashboard() {
                     ))}
                 </select>
 
-                <input name="title" value={formData.title} onChange={handleChange} placeholder="视频标题" required disabled={isReadOnlyMode} style={inputStyle} />
-                <input name="videoUrl" value={formData.videoUrl} onChange={handleChange} placeholder="视频直链" required disabled={isReadOnlyMode} style={inputStyle} />
-                <input name="expiryDate" value={formData.expiryDate} onChange={handleChange} type="date" placeholder="页面有效过期时间" disabled={isReadOnlyMode} style={inputStyle} />
+                <input name="title" value={formData.title} onChange={handleChange} placeholder="视频标题 *" required disabled={isReadOnlyMode} style={styles.input} />
+                <input name="videoUrl" value={formData.videoUrl} onChange={handleChange} placeholder="视频直链 *" required disabled={isReadOnlyMode} style={styles.input} />
+                <input name="expiryDate" value={formData.expiryDate} onChange={handleChange} type="date" placeholder="页面有效过期时间" disabled={isReadOnlyMode} style={styles.input} />
             </div>
 
             {!isReadOnlyMode && (
-                <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                    <button type="submit" style={{ ...buttonStyle, backgroundColor: formData.id ? '#ffc107' : '#28a745' }}>
+                <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px', display: 'flex', gap: '10px' }}>
+                    <button type="submit" style={{ ...styles.buttonBase, ...(formData.id ? styles.buttonWarning : styles.buttonSuccess) }}>
                         {formData.id ? '更新并下载列表文件 (JSON)' : '新增并下载列表文件 (JSON)'}
                     </button>
                     {formData.id && (
-                        <button type="button" onClick={resetForm} style={{ ...buttonStyle, backgroundColor: '#6c757d', marginLeft: '10px' }}>
+                        <button type="button" onClick={resetForm} style={{ ...styles.buttonBase, ...styles.buttonSecondary }}>
                             取消编辑
                         </button>
                     )}
                 </div>
             )}
 
-            {isReadOnlyMode && <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式（上线环境），无法编辑或新增。编辑操作请联系运维小张。</p>}
+            {isReadOnlyMode && <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式（上线环境），无法编辑或新增。</p>}
         </form>
     );
     
     // 渲染分页控制组件
     const renderPagination = () => {
-        if (totalPages <= 1) return null;
+        if (totalPages <= 1 && filteredVideos.length === 0) return null;
 
-        const maxButtons = 5;
-        const startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
-        const endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        const maxButtons = isMobile ? 3 : 5; 
+        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        
+        if (endPage - startPage < maxButtons - 1) {
+            startPage = Math.max(1, endPage - maxButtons + 1);
+        }
 
         const pageButtons = [];
         for (let i = startPage; i <= endPage; i++) {
@@ -361,9 +540,15 @@ function AdminDashboard() {
                     key={i}
                     onClick={() => goToPage(i)}
                     style={{
-                        ...pageButtonStyle,
+                        padding: '8px 12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        minWidth: '35px',
                         backgroundColor: i === currentPage ? '#007bff' : '#f0f0f0',
                         color: i === currentPage ? 'white' : '#333',
+                        fontWeight: i === currentPage ? 600 : 'normal',
                     }}
                 >
                     {i}
@@ -372,100 +557,152 @@ function AdminDashboard() {
         }
 
         return (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '20px', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '20px', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '14px', color: '#6c757d', marginRight: '10px' }}>
                     共 {filteredVideos.length} 条记录 / 第 {currentPage} 页 / 共 {totalPages} 页
                 </span>
 
-                <select onChange={handlePageSizeChange} value={pageSize} style={{ ...inputStyle, width: 'auto', padding: '5px 8px', cursor: 'pointer' }}>
+                <select onChange={handlePageSizeChange} value={pageSize} style={{ ...styles.input, width: 'auto', padding: '5px 8px', cursor: 'pointer' }}>
                     {PAGE_SIZE_OPTIONS.map(size => (
                         <option key={size} value={size}>{size} 条/页</option>
                     ))}
                 </select>
 
-                <button onClick={() => goToPage(1)} disabled={currentPage === 1} style={pageNavButtonStyle}>首页</button>
-                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={pageNavButtonStyle}>上一页</button>
+                <button onClick={() => goToPage(1)} disabled={currentPage === 1} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>首页</button>
+                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>上一页</button>
                 
                 {pageButtons}
 
-                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={pageNavButtonStyle}>下一页</button>
-                <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} style={pageNavButtonStyle}>尾页</button>
+                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>下一页</button>
+                <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>尾页</button>
             </div>
         );
     };
 
+    // 移动端卡片列表渲染
+    const renderMobileList = () => (
+        <div>
+            {paginatedVideos.map(video => {
+                const isExpired = video.expiryDate && new Date(video.expiryDate) < new Date();
+                const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === video.category) || video.category;
+                
+                return (
+                    <div key={video.id} style={styles.mobileListItem}>
+                        <div style={styles.mobileTitle}>
+                            {highlightText(video.title, searchTerm)}
+                        </div>
+                        <div style={styles.mobileMetaItem}>
+                            <span><b>分类:</b></span>
+                            <span style={{ fontWeight: 600 }}>{categoryLabel}</span>
+                        </div>
+                        <div style={styles.mobileMetaItem}>
+                            <span><b>链接:</b></span>
+                            <a href={video.generatedLink} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', textDecoration: 'none', fontSize: '12px', wordBreak: 'break-all' }}>
+                                {video.generatedLink}
+                            </a>
+                        </div>
+                        <div style={{ ...styles.mobileMetaItem, borderBottom: 'none' }}>
+                            <span><b>过期时间:</b></span>
+                            <span style={{ color: isExpired ? '#dc3545' : '#28a745', fontWeight: 600 }}>
+                                {video.expiryDate || '永久'}
+                            </span>
+                        </div>
+                        
+                        <div style={styles.mobileActions}>
+                            {!isReadOnlyMode && (
+                                <>
+                                    <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
+                                    <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+                                </>
+                            )}
+                            <button onClick={() => handleCopy(video.generatedLink)} style={styles.buttonAction('#007bff')}>复制链接</button>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+    
+    // 桌面端表格渲染
+    const renderDesktopTable = () => (
+        <div style={styles.tableContainer(isMobile)}>
+            <table style={styles.table}>
+                <thead>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={styles.tableHeader}>视频标题</th>
+                        <th style={styles.tableHeader}>链接路由</th>
+                        <th style={styles.tableHeader}>档期分类</th>
+                        <th style={styles.tableHeader}>过期时间</th>
+                        <th style={styles.tableHeader}>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {paginatedVideos.map(video => {
+                        const isExpired = video.expiryDate && new Date(video.expiryDate) < new Date();
+                        const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === video.category) || video.category;
+                        
+                        return (
+                            <tr key={video.id} style={styles.tableRow}>
+                                <td style={styles.tableCell}>
+                                    <b>{highlightText(video.title, searchTerm)}</b>
+                                </td>
+                                <td style={{ ...styles.tableCell, fontSize: '11px' }}>
+                                    <a href={video.generatedLink} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', textDecoration: 'none' }}>{video.generatedLink}</a>
+                                </td>
+                                <td style={styles.tableCell}>
+                                    {categoryLabel}
+                                </td>
+                                <td style={{ ...styles.tableCell, color: isExpired ? '#dc3545' : '#28a745', fontWeight: 600 }}>
+                                    {video.expiryDate || '永久'}
+                                </td>
+                                <td style={styles.tableCell}>
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                        {!isReadOnlyMode && (
+                                            <>
+                                                <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
+                                                <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+                                            </>
+                                        )}
+                                        <button onClick={() => handleCopy(video.generatedLink)} style={styles.buttonAction('#007bff')}>复制</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
 
-    // 渲染列表 (样式代码省略，保持不变)
+
+    // 渲染列表
     const renderList = () => (
         <div>
-            <h3 style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', color: '#333' }}>已生成的链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
+            <h3 style={styles.listHeader}>已生成的链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
 
             {/* 搜索过滤区域 */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                {/* 档期分类下拉框 */}
+            <div style={styles.filterContainer(isMobile)}>
                 <select
                     value={selectedCategory}
                     onChange={handleCategoryFilterChange}
-                    style={{ ...inputStyle, flex: 'none', width: '200px', cursor: 'pointer' }}
+                    style={{ ...styles.input, flex: isMobile ? 'none' : '200px', cursor: 'pointer' }}
                 >
                     {CATEGORY_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                 </select>
 
-                {/* 搜索输入框 */}
                 <input
                     type="text"
                     placeholder="🔍 搜索视频标题..."
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    style={{ ...inputStyle, flex: '1' }}
+                    style={{ ...styles.input, flex: '1' }}
                 />
             </div>
-
-
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px', marginTop: '10px' }}>
-                <thead>
-                    <tr style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
-                        <th style={tableHeaderStyle}>标题</th>
-                        <th style={tableHeaderStyle}>链接 (通用播放器路由)</th>
-                        <th style={tableHeaderStyle}>档期分类</th>
-                        <th style={tableHeaderStyle}>过期时间</th>
-                        <th style={tableHeaderStyle}>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {paginatedVideos.map(video => (
-                        <tr key={video.id} style={{ backgroundColor: '#fff', borderBottom: '1px solid #eee', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
-                            <td style={tableCellStyle}>
-                                {highlightText(video.title, searchTerm)}
-                            </td>
-                            <td style={{ ...tableCellStyle, fontSize: '11px', wordBreak: 'break-all' }}>
-                                <a href={video.generatedLink} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', textDecoration: 'none' }}>{video.generatedLink}</a>
-                            </td>
-                            <td style={tableCellStyle}>
-                                {Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === video.category) || video.category}
-                            </td>
-                            <td style={{ ...tableCellStyle, color: video.expiryDate && new Date(video.expiryDate) < new Date() ? '#dc3545' : '#28a745' }}>
-                                {video.expiryDate || '永久'}
-                            </td>
-                            <td style={tableCellStyle}>
-                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                                    {!isReadOnlyMode && (
-                                        <>
-                                            <button onClick={() => handleEdit(video)} style={{ ...actionButtonStyle, backgroundColor: '#17a2b8' }}>编辑</button>
-                                            <button onClick={() => handleDelete(video.id)} style={{ ...actionButtonStyle, backgroundColor: '#dc3545' }}>删除</button>
-                                        </>
-                                    )}
-                                    <button onClick={() => handleCopy(video.generatedLink)} style={{ ...actionButtonStyle, backgroundColor: '#007bff' }}>复制</button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
             
-            {paginatedVideos.length === 0 && (
+            {/* 根据屏幕宽度选择渲染表格还是卡片列表 */}
+            {paginatedVideos.length > 0 ? (isMobile ? renderMobileList() : renderDesktopTable()) : (
                 <p style={{ textAlign: 'center', marginTop: '20px', color: '#6c757d' }}>
                     {searchTerm || selectedCategory ? `未找到匹配结果。` : '当前列表为空。'}
                 </p>
@@ -476,76 +713,13 @@ function AdminDashboard() {
         </div>
     );
 
-    // ----------------------------------------
-    // 样式定义
-    // ----------------------------------------
-    const inputStyle = {
-        padding: '10px 12px',
-        border: '1px solid #ced4da',
-        borderRadius: '4px',
-        fontSize: '14px',
-        boxSizing: 'border-box',
-        width: '100%',
-        minWidth: '50px'
-    };
-
-    const buttonStyle = {
-        padding: '10px 15px',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: 'bold',
-        transition: 'background-color 0.2s',
-    };
-
-    const tableHeaderStyle = {
-        borderBottom: '2px solid #ddd',
-        padding: '12px 8px',
-        textAlign: 'center',
-        fontSize: '14px',
-        color: '#333'
-    };
-
-    const tableCellStyle = {
-        padding: '12px 8px',
-        textAlign: 'center',
-        fontSize: '14px',
-        borderLeft: 'none',
-        borderRight: 'none',
-    };
-
-    const actionButtonStyle = {
-        padding: '5px 10px',
-        color: 'white',
-        border: 'none',
-        borderRadius: '3px',
-        cursor: 'pointer',
-        fontSize: '12px',
-    };
-    
-    const pageButtonStyle = {
-        padding: '8px 12px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        minWidth: '35px',
-    };
-
-    const pageNavButtonStyle = {
-        ...pageButtonStyle,
-        backgroundColor: '#f0f0f0',
-        color: '#333',
-        border: '1px solid #ccc',
-    };
-
     return (
-        <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', backgroundColor: '#f4f7f9', minHeight: '100vh' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>
-                <h1 style={{ color: '#333' }}>视频管理后台 <span style={{ fontSize: '16px', fontWeight: 'normal', color: '#6c757d' }}>({isReadOnlyMode ? '上线只读模式' : '本地开发模式'})</span></h1>
-                <button onClick={handleLogout} style={{ ...buttonStyle, backgroundColor: '#dc3545' }}>
+        <div style={styles.pageContainer}>
+            <div style={styles.header}>
+                <h1 style={styles.headerTitle}>
+                    视频管理后台 <span style={styles.headerSubtitle}>({isReadOnlyMode ? '上线只读模式' : '本地开发模式'})</span>
+                </h1>
+                <button onClick={handleLogout} style={{ ...styles.buttonBase, ...styles.buttonDanger }}>
                     退出登录
                 </button>
             </div>
@@ -553,15 +727,16 @@ function AdminDashboard() {
             {renderForm()}
             {renderList()}
 
-            <p style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333' }}>
+            <div style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)' }}>
                 <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
                 <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
                     {Object.entries(CATEGORY_MAP).map(([label, value]) => (
                         <li key={value}>{label} 对应代码: <b>{value}</b></li>
                     ))}
                 </ul>
-            </p>
+            </div>
         </div>
     );
 }
+
 export default AdminDashboard;
