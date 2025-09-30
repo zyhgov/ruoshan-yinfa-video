@@ -38,6 +38,9 @@ const PlayerPage = () => {
     const category = searchParams.get('category');
     const name = searchParams.get('name');
 
+    // **【新增状态】** 用于实时强制更新过期状态
+    const [isExpiredLive, setIsExpiredLive] = useState(false);
+
     useEffect(() => {
         const fetchVideo = async () => {
             if (!category || !name) {
@@ -79,27 +82,21 @@ const PlayerPage = () => {
         const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === videoData.category) || videoData.category;
         const expiryDateStr = videoData.expiryDate;
         
-        // 检查是否过期
+        // 检查是否过期（仅用于初始化判断）
         let isExpired = false;
-        let expiryTimestamp = null; // 用于存储最终的过期时间戳
+        let expiryTimestamp = null;
 
         if (expiryDateStr) {
-            // 检查是否为纯日期格式 (YYYY-MM-DD，长度为 10)
             const dateOnlyFormat = expiryDateStr.length <= 10; 
-            
-            // 1. 获取过期时间戳
             const expiryDate = new Date(expiryDateStr);
             
             if (!isNaN(expiryDate.getTime())) {
                 expiryTimestamp = expiryDate.getTime();
 
                 if (dateOnlyFormat) {
-                    // 如果是纯日期格式 (YYYY-MM-DD)
-                    // 则加一天减一毫秒，使其在当天的最后一毫秒过期 (即次日零点后过期)
-                    // 确保设置 2025-09-30，在 2025-10-01 00:00:00 时过期
+                    // 纯日期格式：加一天减一毫秒，在当天最后一毫秒过期
                     expiryTimestamp += (24 * 60 * 60 * 1000) - 1; 
                 } 
-                // 否则 (YYYY-MM-DD HH:MM:SS 格式)，无需容错，精确到秒/毫秒过期
 
                 const now = new Date().getTime();
                 if (now > expiryTimestamp) {
@@ -108,10 +105,13 @@ const PlayerPage = () => {
             }
         }
         
-        // 显示文本：如果包含时间，则完整显示；如果只有日期，则只显示日期
         const expiryDisplay = expiryDateStr 
             ? `有效截止: ${expiryDateStr}` 
             : '永久有效';
+
+        // **【重要】** 将 useMemo 计算出的过期状态同步到 Live 状态
+        // 初始状态下 isExpiredLive 依赖这个计算结果
+        setIsExpiredLive(isExpired);
 
         return {
             categoryLabel,
@@ -119,20 +119,64 @@ const PlayerPage = () => {
             expiryDisplay,
             videoUrl: videoData.videoUrl,
             title: videoData.title,
-            expiryDateStr: videoData.expiryDate, // 保持原始字符串用于显示在 Overlay 上
+            expiryDateStr: videoData.expiryDate,
+            // **【新增】** 暴露计算出的时间戳，供 Live Check 使用
+            expiryTimestamp: expiryTimestamp 
         };
     }, [videoData]);
     
-    // 👇 新增：动态设置页面标题
+    // 👇 动态设置页面标题
     useEffect(() => {
         if (videoInfo.title && videoInfo.categoryLabel) {
             document.title = `${videoInfo.title} | ${videoInfo.categoryLabel}`;
         }
     }, [videoInfo.title, videoInfo.categoryLabel]);
-    
+
+
+    // ----------------------------------------
+    // 【核心 BUG 修复】实时过期检查和强制停止
+    // ----------------------------------------
+    useEffect(() => {
+        if (!videoInfo.expiryTimestamp) {
+            // 如果永久有效，则无需设置定时器
+            return;
+        }
+
+        const checkExpiration = () => {
+            const now = new Date().getTime();
+            
+            // 检查当前时间是否超过过期时间戳
+            if (now > videoInfo.expiryTimestamp) {
+                // 如果过期，更新状态，这将触发 UI 重新渲染
+                setIsExpiredLive(true); 
+                
+                // 强制停止视频播放
+                const videoElement = document.getElementById('videoPlayer');
+                if (videoElement && !videoElement.paused) {
+                    videoElement.pause();
+                    // 可选：为了更彻底，清空 src 属性阻止任何进一步加载
+                    videoElement.src = '';
+                    videoElement.load();
+                }
+            }
+        };
+
+        // 设置定时器，每 5 秒（5000 毫秒）检查一次
+        const intervalId = setInterval(checkExpiration, 5000); 
+
+        // 组件卸载时或依赖项变化时清除定时器
+        return () => clearInterval(intervalId);
+
+    }, [videoInfo.expiryTimestamp]); // 依赖于计算出的过期时间戳
+
+
     // ----------------------------------------
     // 渲染加载中、错误或播放页
     // ----------------------------------------
+
+    // **【重要】** 渲染时使用实时状态 isExpiredLive
+    const finalIsExpired = videoInfo.isExpired || isExpiredLive; 
+
     if (loading) {
         return <div style={{ textAlign: 'center', padding: '50px' }}>视频信息加载中...</div>;
     }
@@ -147,7 +191,6 @@ const PlayerPage = () => {
     }
 
     if (!videoData) {
-        // 通常被 error 捕获，但作为最终保障
         return <div style={{ textAlign: 'center', padding: '50px' }}>未找到视频。</div>;
     }
 
@@ -167,18 +210,20 @@ const PlayerPage = () => {
                             id="videoPlayer"
                             src={videoInfo.videoUrl}
                             controls
-                            autoPlay={!videoInfo.isExpired} 
+                            // 使用 finalIsExpired 来决定是否自动播放
+                            autoPlay={!finalIsExpired} 
                             playsInline
                             preload="metadata"
                             controlsList="nodownload nofullscreen noremoteplayback"
                             onContextMenu={(e) => e.preventDefault()}
                             disablePictureInPicture
-                            style={{ ...styles.videoPlayer, visibility: videoInfo.isExpired ? 'hidden' : 'visible' }}
+                            // 使用 finalIsExpired 来决定可见性
+                            style={{ ...styles.videoPlayer, visibility: finalIsExpired ? 'hidden' : 'visible' }}
                         >
                             您的浏览器不支持 HTML5 视频。
                         </video>
                         
-                        {videoInfo.isExpired && (
+                        {finalIsExpired && (
                             <div style={styles.expiredOverlay}>
                                 <h2 style={styles.expiredOverlayH2}>⚠️ 视频已过期 ⚠️</h2>
                                 <p style={styles.expiredOverlayP}>
@@ -196,7 +241,7 @@ const PlayerPage = () => {
                             <span style={styles.categoryTag}>
                                 🎬 {videoInfo.categoryLabel}
                             </span>
-                            <span style={{ ...styles.expiryStatus, color: videoInfo.isExpired ? '#dc2626' : '#16a34a' }}>
+                            <span style={{ ...styles.expiryStatus, color: finalIsExpired ? '#dc2626' : '#16a34a' }}>
                                 📅 {videoInfo.expiryDisplay}
                             </span>
                         </div>
@@ -213,7 +258,7 @@ const PlayerPage = () => {
                     style={styles.reportLink}
                 >
                     <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }}></i>
-                    举报违规内容
+                    举报违法违规内容
                 </a>
             </div>
         </div>
@@ -221,13 +266,13 @@ const PlayerPage = () => {
 };
 
 // ----------------------------------------
-// 样式定义 (模仿原 HTML 中的样式)
+// 样式定义 (未修改)
 // ----------------------------------------
 const styles = {
     topNavbar: {
         position: 'sticky',
         top: 0,
-        width: '100%', // 确保宽度为100%
+        width: '100%', 
         background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 100%)',
         color: 'white',
         padding: '12px 20px',
@@ -239,7 +284,6 @@ const styles = {
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        // 核心修复：内边距包含在宽度内，防止溢出
         boxSizing: 'border-box', 
     },
     logo: {
@@ -260,7 +304,6 @@ const styles = {
         maxWidth: '1200px',
         margin: '0 auto',
         padding: '0 16px',
-        // 核心修复：内边距包含在宽度内，防止溢出
         boxSizing: 'border-box', 
     },
     videoPlayerContainer: {
@@ -271,11 +314,9 @@ const styles = {
         marginTop: '16px',
         maxWidth: '100%',
         boxShadow: '0 6px 12px rgba(0, 0, 0, 0.2)',
-        // 保持 16:9 比例 (这是正确的响应式视频比例设置)
         paddingBottom: '56.25%', 
         height: 0,
     },
-    // 👇 举报页脚容器
     reportFooter: {
         padding: '12px 0',
         backgroundColor: 'white',
@@ -284,8 +325,6 @@ const styles = {
         boxShadow: '0 -2px 8px rgba(0,0,0,0.05)',
         zIndex: 100,
     },
-
-    // 👇 举报链接样式
     reportLink: {
         color: '#dc2626',
         textDecoration: 'none',
