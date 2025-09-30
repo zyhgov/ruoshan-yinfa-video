@@ -95,6 +95,35 @@ const highlightText = (text, highlight) => {
 };
 
 // ----------------------------------------------------
+// 辅助函数：日期时间格式转换 (新增，用于支持精确到秒的输入)
+// ----------------------------------------------------
+
+/**
+ * 将内部存储格式 (YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS)
+ * 转换为 <input type="datetime-local"> 所需的 YYYY-MM-DDTHH:MM 格式。
+ */
+const formatInternalDateToDatetimeLocal = (dateString) => {
+    if (!dateString) return '';
+    const parts = dateString.split(' ');
+    const datePart = parts[0];
+    
+    // 如果是纯日期 (YYYY-MM-DD)，则补齐 T00:00
+    if (parts.length === 1) {
+        return `${datePart}T00:00`;
+    }
+    
+    // 如果包含时间 (YYYY-MM-DD HH:MM:SS)，替换空格为 T，并保留到分钟
+    const timePart = parts[1];
+    if (timePart) {
+        // 确保只取到分钟 (HH:MM)
+        const timeMinutes = timePart.substring(0, 5); 
+        return `${datePart}T${timeMinutes}`;
+    }
+    return '';
+};
+
+
+// ----------------------------------------------------
 // 辅助函数：响应式 Hook
 // ----------------------------------------------------
 
@@ -501,7 +530,36 @@ function AdminDashboard() {
 
                 <input name="title" value={formData.title} onChange={handleChange} placeholder="视频标题 *" required disabled={isReadOnlyMode} style={styles.input} />
                 <input name="videoUrl" value={formData.videoUrl} onChange={handleChange} placeholder="视频直链 *" required disabled={isReadOnlyMode} style={styles.input} />
-                <input name="expiryDate" value={formData.expiryDate} onChange={handleChange} type="date" placeholder="页面有效过期时间" disabled={isReadOnlyMode} style={styles.input} />
+                
+                {/* ---------- 修改点 1：更换为 datetime-local 并处理格式转换 ---------- */}
+                <input 
+                    name="expiryDate" 
+                    // 使用辅助函数将内部数据格式转换为 input 所需格式
+                    value={formatInternalDateToDatetimeLocal(formData.expiryDate)} 
+                    onChange={(e) => {
+                        const value = e.target.value; // 格式为 YYYY-MM-DDTHH:MM
+                        let newExpiryDate = value;
+
+                        if (value) {
+                            // 将 input 值 (YYYY-MM-DDTHH:MM) 转换为内部存储标准格式 (YYYY-MM-DD HH:MM:00)
+                            // 此时精确到秒为 00
+                            newExpiryDate = value.replace('T', ' ') + ':00'; 
+                        } else {
+                            // 清空时设置为空字符串
+                            newExpiryDate = '';
+                        }
+                        
+                        // 由于是特殊处理，不使用通用的 handleChange，直接调用 setFormData
+                        setFormData(prev => ({ ...prev, expiryDate: newExpiryDate }));
+                    }}
+                    // 修改为 datetime-local 支持日期和时间
+                    type="datetime-local" 
+                    placeholder="页面有效过期时间 (年-月-日 时:分)" 
+                    disabled={isReadOnlyMode} 
+                    style={styles.input} 
+                />
+                {/* ------------------------------------------------------------- */}
+
             </div>
 
             {!isReadOnlyMode && (
