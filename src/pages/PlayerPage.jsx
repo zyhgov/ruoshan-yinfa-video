@@ -252,13 +252,13 @@ const PlayerPage = () => {
             {/* 👇 举报区域：固定在页面底部（文档流最后） */}
             <div style={styles.reportFooter}>
                 <a
-                    href="https://forms.office.com/r/7ipB7GPS9T"
+                    href="https://jsj.top/f/eA7DUc"
                     target="_blank"
                     rel="noopener noreferrer"
                     style={styles.reportLink}
                 >
                     <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }}></i>
-                    举报违法违规内容
+                    网络违法违规内容举报
                 </a>
             </div>
         </div>
