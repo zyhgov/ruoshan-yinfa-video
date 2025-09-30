@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+// -------------------------------------------------------------------------
+// 核心配置与常量
+// -------------------------------------------------------------------------
+
+// 【核心修改点】视频列表的 Cloudflare 完整加载链接
+const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 
 // 固定的档期分类列表 (复制自 AdminDashboard.jsx)
 const CATEGORY_MAP = {
@@ -12,19 +18,24 @@ const CATEGORY_MAP = {
     "奇酒奇方": "qjqf",
 };
 
-// 异步加载视频列表数据 (复制自 AdminDashboard.jsx)
+// 异步加载视频列表数据
 const loadVideos = async () => {
     try {
-        const response = await fetch('/video_list.json');
+        // 【核心修改点】使用 Cloudflare 加速链接代替相对路径
+        const response = await fetch(CLOUDFLARE_VIDEO_LIST_URL); 
+        
         if (!response.ok) {
-            console.error("无法加载 /video_list.json 文件。");
-            return [];
+            console.error(`❌ 无法加载 ${CLOUDFLARE_VIDEO_LIST_URL} 文件。状态码: ${response.status}`);
+            // 抛出错误以在组件中捕获
+            throw new Error(`无法从 Cloudflare 加载列表: 状态码 ${response.status}。请检查 CORS 配置！`);
         }
+        
         const data = await response.json();
         return Array.isArray(data) ? data : [];
     } catch (error) {
         console.error("加载 video_list.json 失败:", error);
-        return [];
+        // 确保抛出字符串或 Error 对象
+        throw new Error("加载视频列表数据失败，请检查网络或 CORS 配置。");
     }
 };
 
@@ -50,6 +61,7 @@ const PlayerPage = () => {
             }
 
             try {
+                // 确保 loadVideos 抛出的错误被捕获
                 const allVideos = await loadVideos();
                 
                 // 根据 URL 参数查找对应的视频
@@ -62,9 +74,9 @@ const PlayerPage = () => {
                 } else {
                     setError(`未找到匹配的视频信息：分类=${category}, 链接名=${name}`);
                 }
-            } catch (error) {
-                console.error("加载 video_list.json 失败:", error);
-                setError("加载视频列表时发生未知错误。");
+            } catch (err) {
+                // 捕获 loadVideos 抛出的错误信息
+                setError(err.message); 
             } finally {
                 setLoading(false);
             }
@@ -95,6 +107,7 @@ const PlayerPage = () => {
 
                 if (dateOnlyFormat) {
                     // 纯日期格式：加一天减一毫秒，在当天最后一毫秒过期
+                    // 注意：这里的计算是基于本地时区的，生产环境需要确保服务器时间一致性。
                     expiryTimestamp += (24 * 60 * 60 * 1000) - 1; 
                 } 
 
@@ -152,9 +165,12 @@ const PlayerPage = () => {
                 
                 // 强制停止视频播放
                 const videoElement = document.getElementById('videoPlayer');
-                if (videoElement && !videoElement.paused) {
-                    videoElement.pause();
-                    // 可选：为了更彻底，清空 src 属性阻止任何进一步加载
+                if (videoElement) {
+                    // 停止播放
+                    if (!videoElement.paused) {
+                        videoElement.pause();
+                    }
+                    // 清空 src 属性阻止任何进一步加载
                     videoElement.src = '';
                     videoElement.load();
                 }
@@ -177,21 +193,33 @@ const PlayerPage = () => {
     // **【重要】** 渲染时使用实时状态 isExpiredLive
     const finalIsExpired = videoInfo.isExpired || isExpiredLive; 
 
+    const renderMessage = (title, message, isError = false) => (
+        <div style={{ 
+            maxWidth: '600px', 
+            margin: '50px auto', 
+            padding: '30px', 
+            borderRadius: '10px', 
+            backgroundColor: isError ? '#f8d7da' : '#fff3cd', 
+            border: isError ? '1px solid #f5c6cb' : '1px solid #ffeeba',
+            color: isError ? '#721c24' : '#856404',
+            textAlign: 'center',
+            fontFamily: 'sans-serif'
+        }}>
+            <h2 style={{ fontSize: '24px', marginBottom: '15px' }}>{title}</h2>
+            <p style={{ fontSize: '16px' }}>{message}</p>
+        </div>
+    );
+    
     if (loading) {
-        return <div style={{ textAlign: 'center', padding: '50px' }}>视频信息加载中...</div>;
+        return renderMessage("📺 数据加载中...", "正在动态加载视频信息，请稍候...");
     }
 
     if (error) {
-        return (
-            <div style={{ textAlign: 'center', padding: '50px', color: '#dc3545', border: '1px solid #dc3545', margin: '20px', borderRadius: '8px' }}>
-                <h2>视频加载错误</h2>
-                <p>{error}</p>
-            </div>
-        );
+        return renderMessage("视频加载错误", error, true);
     }
 
     if (!videoData) {
-        return <div style={{ textAlign: 'center', padding: '50px' }}>未找到视频。</div>;
+        return renderMessage("未找到视频", "未找到匹配的视频信息，请检查 URL 参数。", true);
     }
 
     return (
@@ -208,7 +236,9 @@ const PlayerPage = () => {
                     <div style={styles.videoPlayerContainer}>
                         <video 
                             id="videoPlayer"
-                            src={videoInfo.videoUrl}
+                            // 当过期时，如果 src 仍有值，浏览器可能尝试加载，因此最好在过期时将 src 置空或使用已有的逻辑清空。
+                            // 但在这里，我们依赖 useEffect 里的逻辑来主动清空 src。
+                            src={videoInfo.videoUrl} 
                             controls
                             // 使用 finalIsExpired 来决定是否自动播放
                             autoPlay={!finalIsExpired} 
@@ -266,7 +296,7 @@ const PlayerPage = () => {
 };
 
 // ----------------------------------------
-// 样式定义 (未修改)
+// 样式定义
 // ----------------------------------------
 const styles = {
     topNavbar: {

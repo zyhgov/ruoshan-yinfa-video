@@ -9,6 +9,9 @@ const BASE_PATH = '';
 // 检查当前环境是否为只读模式 (非 localhost 视为线上环境)
 const isReadOnlyMode = !window.location.host.includes('localhost');
 
+// 【修改点 1】视频列表的 Cloudflare 完整加载链接
+const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
+
 // 固定的档期分类列表
 const CATEGORY_MAP = {
     "百岁健康班": "bsjkb",
@@ -33,17 +36,20 @@ const FONT_FAMILY = 'MiSans-Semibold';
 // 辅助函数：数据读写（基于 JSON 文件）
 // ----------------------------------------------------
 
+// 【修改点 2】修改 loadVideos 函数，使用 Cloudflare URL
 const loadVideos = async () => {
     try {
-        const response = await fetch('/video_list.json');
+        // 使用完整的 Cloudflare URL 进行跨域请求
+        const response = await fetch(CLOUDFLARE_VIDEO_LIST_URL);
         if (!response.ok) {
-            console.warn("未找到 /video_list.json 文件或加载失败。将使用空列表。");
+            console.error(`❌ 加载 ${CLOUDFLARE_VIDEO_LIST_URL} 失败。状态码: ${response.status}。`);
+            console.warn("请检查您的 Cloudflare Objects/Pages 是否为该文件设置了正确的 CORS (Access-Control-Allow-Origin: *) 响应头。");
             return [];
         }
         const data = await response.json();
         return Array.isArray(data) ? data : [];
     } catch (error) {
-        console.error("加载 video_list.json 失败:", error);
+        console.error("加载视频列表数据失败:", error);
         return [];
     }
 };
@@ -66,8 +72,8 @@ const downloadJsonFile = (data) => {
         📢 列表数据文件已生成并下载: ${fileName}。
 
         👉 重要！请手动操作：
-        1. 将下载的 \`${fileName}\` 移动到您 Git 仓库的根目录下。
-        2. 将此文件与您的代码一起提交并推送到 GitHub！
+        1. 将下载的 \`${fileName}\` **手动上传** 到您的 Cloudflare Objects (ruo-shan-asset) 存储桶中，覆盖原有的 ${CLOUDFLARE_VIDEO_LIST_URL} 文件。
+        2. 如果您需要提交到 Git 仓库，请记得同步更新。
     `);
 };
 
@@ -378,14 +384,6 @@ function AdminDashboard() {
         const startIndex = (currentPage - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         
-        // 【核心修改点 1】移除跨页自动清除勾选的代码，实现跨页选择
-        /*
-        setSelectedVideoIds(prev => prev.filter(id => {
-            const videoIndex = filteredVideos.findIndex(v => v.id === id);
-            return videoIndex >= startIndex && videoIndex < endIndex;
-        }));
-        */
-        
         return filteredVideos.slice(startIndex, endIndex);
     }, [filteredVideos, currentPage, pageSize]);
 
@@ -432,7 +430,7 @@ function AdminDashboard() {
         );
     }, []);
 
-    // 【修改点 2】处理全选/全不选：只针对当前页的视频进行操作
+    // 处理全选/全不选：只针对当前页的视频进行操作
     const handleSelectAll = useCallback((checked) => {
         const currentPageIds = paginatedVideos.map(v => v.id);
         
@@ -477,7 +475,7 @@ function AdminDashboard() {
             updatedVideos = videos.map(v =>
                 v.id === formData.id ? { ...formData, generatedLink } : v
             );
-            alert('视频信息已更新！新的 JSON 列表文件已自动下载，请提交 Git。');
+            alert('视频信息已更新！新的 JSON 列表文件已自动下载，请手动上传至 Cloudflare Object Storage。');
         } else {
             const newVideo = {
                 ...formData,
@@ -485,7 +483,7 @@ function AdminDashboard() {
                 generatedLink
             };
             updatedVideos = [...videos, newVideo];
-            alert('视频信息已新增！新的 JSON 列表文件已自动下载，请提交 Git。');
+            alert('视频信息已新增！新的 JSON 列表文件已自动下载，请手动上传至 Cloudflare Object Storage。');
         }
 
         setVideos(updatedVideos);
@@ -498,11 +496,11 @@ function AdminDashboard() {
     const handleDelete = useCallback((id) => {
         if (isReadOnlyMode) return;
 
-        if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动提交最新的 JSON 列表文件！')) {
+        if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动上传最新的 JSON 列表文件！')) {
             const updatedVideos = videos.filter(v => v.id !== id);
             setVideos(updatedVideos);
             downloadJsonFile(updatedVideos);
-            alert('✅ 链接已删除！请记得提交最新的 JSON 列表文件到 Git。');
+            alert('✅ 链接已删除！请记得手动上传最新的 JSON 列表文件到 Cloudflare Object Storage。');
             setCurrentPage(1);
         }
     }, [videos]);
@@ -521,7 +519,7 @@ function AdminDashboard() {
     }, []);
 
 
-    // 【修改点 3】批量复制功能：逻辑不变，因为它基于选中的ID，可以跨页复制
+    // 批量复制功能：逻辑不变，可以跨页复制
     const handleBatchCopy = useCallback(() => {
         if (selectedVideoIds.length === 0) {
             alert('请先勾选需要复制的视频！');
@@ -532,14 +530,14 @@ function AdminDashboard() {
         const selectedVideosData = videos.filter(v => selectedVideoIds.includes(v.id));
         const baseUrl = window.location.origin;
 
-        // 格式化复制内容: [标题]\n[完整链接]\n\n[标题]\n[完整链接]
+        // 格式化复制内容: [标题]\n[完整链接]\n\n[标题]\n[完整链接]...
         const copyText = selectedVideosData
             .map(video => `${video.title}\n${baseUrl}${video.generatedLink}`)
             .join('\n\n');
 
         navigator.clipboard.writeText(copyText)
             .then(() => {
-                alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n\n`);
+                alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n\n...`);
                 // 成功后清空勾选
                 setSelectedVideoIds([]); 
             })
