@@ -95,7 +95,7 @@ const highlightText = (text, highlight) => {
 };
 
 // ----------------------------------------------------
-// 辅助函数：日期时间格式转换 (新增，用于支持精确到秒的输入)
+// 辅助函数：日期时间格式转换
 // ----------------------------------------------------
 
 /**
@@ -260,7 +260,7 @@ const styles = {
     }),
     table: {
         width: '100%',
-        minWidth: '700px', // 确保在移动设备上可以水平滚动
+        minWidth: '800px', // 确保在移动设备上可以水平滚动 (新增了勾选列，稍微增加宽度)
         borderCollapse: 'separate',
         borderSpacing: '0 10px',
     },
@@ -316,11 +316,9 @@ const styles = {
     },
 };
 
-// ----------------------------------------------------
 // 修正错误：在 styles 对象初始化完成后，进行依赖属性的合并
-// ----------------------------------------------------
 styles.mobileListItem = {
-    ...styles.card(false), // 修正：在 styles 对象定义完成后引用 styles.card
+    ...styles.card(false), 
     ...styles.mobileListItem
 };
 
@@ -340,6 +338,9 @@ function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     
+    // 【新增状态】用于批量操作
+    const [selectedVideoIds, setSelectedVideoIds] = useState([]); 
+
     // 分页状态
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
@@ -352,6 +353,45 @@ function AdminDashboard() {
         videoUrl: '',
         expiryDate: '',
     });
+    
+    // ----------------------------------------
+    // 数据计算与渲染 (过滤和分页)
+    // ----------------------------------------
+
+    const filteredVideos = useMemo(() => {
+        let result = videos;
+        if (selectedCategory) {
+            result = result.filter(video => video.category === selectedCategory);
+        }
+        if (searchTerm) {
+            const lowerCaseSearchTerm = searchTerm.toLowerCase();
+            result = result.filter(video =>
+                video.title.toLowerCase().includes(lowerCaseSearchTerm)
+            );
+        }
+        return result;
+    }, [videos, searchTerm, selectedCategory]);
+
+    // 分页数据计算
+    const totalPages = Math.ceil(filteredVideos.length / pageSize);
+    const paginatedVideos = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        
+        // 【核心修改点 1】移除跨页自动清除勾选的代码，实现跨页选择
+        /*
+        setSelectedVideoIds(prev => prev.filter(id => {
+            const videoIndex = filteredVideos.findIndex(v => v.id === id);
+            return videoIndex >= startIndex && videoIndex < endIndex;
+        }));
+        */
+        
+        return filteredVideos.slice(startIndex, endIndex);
+    }, [filteredVideos, currentPage, pageSize]);
+
+    // 检查当前页是否已全选
+    // 检查当前页可见的所有视频是否都包含在 selectedVideoIds 中
+    const isAllSelected = paginatedVideos.length > 0 && paginatedVideos.every(v => selectedVideoIds.includes(v.id));
 
     // ----------------------------------------
     // 数据加载
@@ -384,6 +424,30 @@ function AdminDashboard() {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
+    
+    // 处理单个视频勾选
+    const handleSelectVideo = useCallback((id) => {
+        setSelectedVideoIds(prev =>
+            prev.includes(id) ? prev.filter(vid => vid !== id) : [...prev, id]
+        );
+    }, []);
+
+    // 【修改点 2】处理全选/全不选：只针对当前页的视频进行操作
+    const handleSelectAll = useCallback((checked) => {
+        const currentPageIds = paginatedVideos.map(v => v.id);
+        
+        setSelectedVideoIds(prev => {
+            if (checked) {
+                // 全选：将当前页的所有 ID 加入到已选列表（使用 Set 避免重复）
+                const newIds = new Set([...prev, ...currentPageIds]);
+                return Array.from(newIds);
+            } else {
+                // 全不选：从已选列表中移除当前页的所有 ID
+                return prev.filter(id => !currentPageIds.includes(id));
+            }
+        });
+    }, [paginatedVideos]);
+
 
     const handleEdit = useCallback((video) => {
         if (isReadOnlyMode) return;
@@ -443,13 +507,47 @@ function AdminDashboard() {
         }
     }, [videos]);
 
-    const handleCopy = useCallback((link) => {
-        let fullLink = `${window.location.origin}${link}`;
+    // 优化单次复制提示信息
+    const handleCopy = useCallback((video) => {
+        // 确保使用完整的域名作为链接前缀
+        const fullLink = `${window.location.origin}${video.generatedLink}`;
+        
+        // 优化提示信息，包含视频标题
+        const alertMessage = `✅ ${video.title} 链接已复制: ${fullLink}`;
 
         navigator.clipboard.writeText(fullLink)
-            .then(() => alert(`✅ 链接已复制（${isReadOnlyMode ? '线上' : '本地'}完整链接）：${fullLink}`))
+            .then(() => alert(alertMessage))
             .catch(err => console.error('复制失败:', err));
-    }, [isReadOnlyMode]);
+    }, []);
+
+
+    // 【修改点 3】批量复制功能：逻辑不变，因为它基于选中的ID，可以跨页复制
+    const handleBatchCopy = useCallback(() => {
+        if (selectedVideoIds.length === 0) {
+            alert('请先勾选需要复制的视频！');
+            return;
+        }
+
+        // 复制所有被选中的视频，不论它们是否在当前页
+        const selectedVideosData = videos.filter(v => selectedVideoIds.includes(v.id));
+        const baseUrl = window.location.origin;
+
+        // 格式化复制内容: [标题]\n[完整链接]\n\n[标题]\n[完整链接]
+        const copyText = selectedVideosData
+            .map(video => `${video.title}\n${baseUrl}${video.generatedLink}`)
+            .join('\n\n');
+
+        navigator.clipboard.writeText(copyText)
+            .then(() => {
+                alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n\n`);
+                // 成功后清空勾选
+                setSelectedVideoIds([]); 
+            })
+            .catch(err => {
+                console.error('批量复制失败:', err);
+                alert('批量复制失败，请确保您在安全环境（HTTPS/localhost）下操作并授予了剪贴板权限。');
+            });
+    }, [selectedVideoIds, videos]);
 
 
     const handleSearchChange = useCallback((e) => {
@@ -471,31 +569,6 @@ function AdminDashboard() {
         setCurrentPage(page);
     }, []);
 
-    // ----------------------------------------
-    // 数据计算与渲染 (过滤和分页)
-    // ----------------------------------------
-
-    const filteredVideos = useMemo(() => {
-        let result = videos;
-        if (selectedCategory) {
-            result = result.filter(video => video.category === selectedCategory);
-        }
-        if (searchTerm) {
-            const lowerCaseSearchTerm = searchTerm.toLowerCase();
-            result = result.filter(video =>
-                video.title.toLowerCase().includes(lowerCaseSearchTerm)
-            );
-        }
-        return result;
-    }, [videos, searchTerm, selectedCategory]);
-
-    // 分页数据计算
-    const totalPages = Math.ceil(filteredVideos.length / pageSize);
-    const paginatedVideos = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        return filteredVideos.slice(startIndex, endIndex);
-    }, [filteredVideos, currentPage, pageSize]);
 
     if (loading) {
         return (
@@ -531,7 +604,6 @@ function AdminDashboard() {
                 <input name="title" value={formData.title} onChange={handleChange} placeholder="视频标题 *" required disabled={isReadOnlyMode} style={styles.input} />
                 <input name="videoUrl" value={formData.videoUrl} onChange={handleChange} placeholder="视频直链 *" required disabled={isReadOnlyMode} style={styles.input} />
                 
-                {/* ---------- 修改点 1：更换为 datetime-local 并处理格式转换 ---------- */}
                 <input 
                     name="expiryDate" 
                     // 使用辅助函数将内部数据格式转换为 input 所需格式
@@ -558,7 +630,6 @@ function AdminDashboard() {
                     disabled={isReadOnlyMode} 
                     style={styles.input} 
                 />
-                {/* ------------------------------------------------------------- */}
 
             </div>
 
@@ -582,7 +653,7 @@ function AdminDashboard() {
     // 渲染分页控制组件
     const renderPagination = () => {
         if (totalPages <= 1 && filteredVideos.length === 0) return null;
-
+        
         const maxButtons = isMobile ? 3 : 5; 
         let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
         let endPage = Math.min(totalPages, startPage + maxButtons - 1);
@@ -649,9 +720,15 @@ function AdminDashboard() {
                         <div style={styles.mobileTitle}>
                             {highlightText(video.title, searchTerm)}
                         </div>
+                        {/* 勾选框 */}
                         <div style={styles.mobileMetaItem}>
-                            <span><b>分类:</b></span>
-                            <span style={{ fontWeight: 600 }}>{categoryLabel}</span>
+                            <span><b>勾选:</b></span>
+                            <input 
+                                type="checkbox" 
+                                checked={selectedVideoIds.includes(video.id)} 
+                                onChange={() => handleSelectVideo(video.id)} 
+                                style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                            />
                         </div>
                         <div style={styles.mobileMetaItem}>
                             <span><b>链接:</b></span>
@@ -673,7 +750,8 @@ function AdminDashboard() {
                                     <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
                                 </>
                             )}
-                            <button onClick={() => handleCopy(video.generatedLink)} style={styles.buttonAction('#007bff')}>复制链接</button>
+                            {/* 复制按钮，传入整个 video 对象 */}
+                            <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制链接</button>
                         </div>
                     </div>
                 );
@@ -687,6 +765,15 @@ function AdminDashboard() {
             <table style={styles.table}>
                 <thead>
                     <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        {/* 全选/勾选列 */}
+                        <th style={{ ...styles.tableHeader, width: '40px' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={isAllSelected} 
+                                onChange={(e) => handleSelectAll(e.target.checked)} 
+                                style={{ cursor: 'pointer' }}
+                            />
+                        </th>
                         <th style={styles.tableHeader}>视频标题</th>
                         <th style={styles.tableHeader}>链接路由</th>
                         <th style={styles.tableHeader}>档期分类</th>
@@ -701,6 +788,15 @@ function AdminDashboard() {
                         
                         return (
                             <tr key={video.id} style={styles.tableRow}>
+                                {/* 勾选单元格 */}
+                                <td style={styles.tableCell}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedVideoIds.includes(video.id)} 
+                                        onChange={() => handleSelectVideo(video.id)} 
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                </td>
                                 <td style={styles.tableCell}>
                                     <b>{highlightText(video.title, searchTerm)}</b>
                                 </td>
@@ -721,7 +817,8 @@ function AdminDashboard() {
                                                 <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
                                             </>
                                         )}
-                                        <button onClick={() => handleCopy(video.generatedLink)} style={styles.buttonAction('#007bff')}>复制</button>
+                                        {/* 复制按钮，传入整个 video 对象 */}
+                                        <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制</button>
                                     </div>
                                 </td>
                             </tr>
@@ -738,7 +835,7 @@ function AdminDashboard() {
         <div>
             <h3 style={styles.listHeader}>已生成的链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
 
-            {/* 搜索过滤区域 */}
+            {/* 搜索过滤区域 & 批量复制按钮 */}
             <div style={styles.filterContainer(isMobile)}>
                 <select
                     value={selectedCategory}
@@ -757,6 +854,22 @@ function AdminDashboard() {
                     onChange={handleSearchChange}
                     style={{ ...styles.input, flex: '1' }}
                 />
+                
+                {/* 批量复制按钮 */}
+                {selectedVideoIds.length > 0 && (
+                    <button 
+                        onClick={handleBatchCopy} 
+                        style={{ 
+                            ...styles.buttonBase, 
+                            ...styles.buttonPrimary,
+                            flex: isMobile ? 'none' : '200px',
+                            backgroundColor: '#20c997', // 醒目的绿色
+                        }}
+                    >
+                        批量复制 ({selectedVideoIds.length} 条)
+                    </button>
+                )}
+
             </div>
             
             {/* 根据屏幕宽度选择渲染表格还是卡片列表 */}
