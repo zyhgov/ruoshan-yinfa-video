@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "csv-parser": "^3.2.0",
+    "danmu.js": "^1.1.13-douyin-0.7",
     "plyr": "^3.8.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.3",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "video.js": "^8.23.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

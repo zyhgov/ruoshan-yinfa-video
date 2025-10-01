@@ -7,7 +7,9 @@ import { v4 as uuidv4 } from 'uuid';
 // -------------------------------------------------------------------------
 const BASE_PATH = '';
 // 检查当前环境是否为只读模式 (非 localhost 视为线上环境)
-const isReadOnlyMode = !window.location.host.includes('localhost');
+// 【修改 1: 线上环境现在允许编辑和上传，已解除只读限制】
+// 警告：请确保您的 Pages Functions 有适当的鉴权保护！
+const isReadOnlyMode = false; 
 
 // 【修改点 1】视频列表的 Cloudflare 完整加载链接
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
@@ -52,27 +54,55 @@ const loadVideos = async () => {
         return [];
     }
 };
-const downloadJsonFile = (data) => {
+
+// 【修改 2】替换原有的 downloadJsonFile 函数为自动上传到 R2 的函数
+const uploadJsonToR2 = async (data) => {
     const jsonContent = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
     const fileName = 'video_list.json';
+    
+    // 目标 API 路由：/api/upload-json (即 Pages Function 的路径)
+    try {
+        const response = await fetch('/api/upload-json', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: jsonContent // 发送 JSON 字符串到后端
+        });
 
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    alert(`
-        📢 列表数据文件已生成并下载: ${fileName}。
+        if (!response.ok) {
+            // 如果 Pages Function 返回错误，抛出异常进入 catch 块
+            const errorBody = await response.json().catch(() => ({ message: response.statusText }));
+            throw new Error(`API Upload Failed: ${response.status} - ${errorBody.message || 'Unknown Server Error'}`);
+        }
 
-        👉 重要！请手动操作：
-        1. 将下载的 \`${fileName}\` **手动上传** 到您的 Cloudflare Objects (ruo-shan-asset) 存储桶中，覆盖原有的 ${CLOUDFLARE_VIDEO_LIST_URL} 文件。
-        2. 如果您需要提交到 Git 仓库，请记得同步更新。
-    `);
+        // 成功提示
+        alert(`✅ ${fileName} 已通过 Pages Function 自动上传到 Cloudflare R2！`);
+        return true;
+
+    } catch (error) {
+        console.error('❌ 自动上传失败，回退到浏览器下载:', error);
+
+        // --- 自动上传失败时的备用逻辑：执行浏览器下载 ---
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert(`
+            📢 自动上传失败，已回退到下载：${fileName}。
+            👉 错误信息: ${error.message}
+            👉 重要！请手动上传文件到 Cloudflare R2 存储桶，覆盖原文件。
+        `);
+        return false;
+    }
 };
+
 
 /**
  * 搜索关键词高亮辅助函数
@@ -181,8 +211,7 @@ const styles = {
         padding: '25px',
         borderRadius: '12px',
         marginBottom: '30px',
-        backgroundColor: isReadOnly ?
-            '#f9f9f9' : '#fff',
+        backgroundColor: isReadOnly ? '#f9f9f9' : '#fff',
         boxShadow: '0 6px 16px rgba(0, 0, 0, 0.08)',
         transition: 'box-shadow 0.3s',
     }),
@@ -193,8 +222,7 @@ const styles = {
     }),
     formTitle: {
         borderBottom: '2px solid #007bff',
-        paddingBottom: 
-            '10px',
+        paddingBottom: '10px',
         marginBottom: '20px',
         color: '#333',
         fontWeight: 600,
@@ -206,7 +234,6 @@ const styles = {
         borderRadius: '8px',
         fontSize: '15px',
         boxSizing: 'border-box',
-        
         width: '100%',
         minWidth: '50px',
         fontFamily: FONT_FAMILY,
@@ -220,8 +247,7 @@ const styles = {
         border: 'none',
         borderRadius: '8px',
         cursor: 'pointer',
-        fontSize: 
-            '15px',
+        fontSize: '15px',
         fontWeight: 600,
         transition: 'background-color 0.2s, transform 0.1s',
         minWidth: '100px',
@@ -233,7 +259,6 @@ const styles = {
         borderRadius: '6px',
         cursor: 'pointer',
         fontSize: '12px',
-    
         backgroundColor: color,
         fontWeight: 600,
         transition: 'opacity 0.2s',
@@ -247,7 +272,6 @@ const styles = {
     // === 列表/表格样式 ===
     listHeader: {
         borderBottom: '2px solid #007bff',
-       
         paddingBottom: '10px',
         color: '#333',
         fontWeight: 600,
@@ -256,8 +280,7 @@ const styles = {
     },
     filterContainer: (isMobile) => ({
         display: 'flex',
-        flexDirection: isMobile ?
-            'column' : 'row',
+        flexDirection: isMobile ? 'column' : 'row',
         gap: '10px',
         marginBottom: '20px',
     }),
@@ -269,7 +292,6 @@ const styles = {
     table: {
         width: '100%',
         minWidth: '800px',
-        
         borderCollapse: 'separate',
         borderSpacing: '0 10px',
     },
@@ -283,7 +305,6 @@ const styles = {
     },
     tableRow: {
         backgroundColor: '#fff',
-       
         borderRadius: '8px',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
         transition: 'box-shadow 0.2s',
@@ -365,7 +386,6 @@ const styles = {
         transition: 'color 0.2s',
     }
 };
-
 // 修正错误：在 styles 对象初始化完成后，进行依赖属性的合并
 styles.mobileListItem = {
     ...styles.card(false), 
@@ -378,7 +398,7 @@ styles.mobileListItem = {
 function AdminDashboard() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
-// 状态用于存储视频列表和加载状态
+    // 状态用于存储视频列表和加载状态
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -387,7 +407,7 @@ function AdminDashboard() {
     
     // 【新增状态】用于批量操作
     const [selectedVideoIds, setSelectedVideoIds] = useState([]);
-// 分页状态
+    // 分页状态
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
     const [formData, setFormData] = useState({
@@ -398,13 +418,11 @@ function AdminDashboard() {
         videoUrl: '',
         expiryDate: '',
     });
-    
     // 【新增状态】用于批量新增输入
     const [batchInput, setBatchInput] = useState('');
     // 【新增状态】控制批量导入弹窗
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-    
-// ----------------------------------------
+    // ----------------------------------------
     // 数据计算与渲染 (过滤和分页)
     // ----------------------------------------
 
@@ -415,14 +433,13 @@ function AdminDashboard() {
         }
         if (searchTerm) {
             const lowerCaseSearchTerm = searchTerm.toLowerCase();
-       
             result = result.filter(video =>
                 video.title.toLowerCase().includes(lowerCaseSearchTerm)
             );
         }
         return result;
     }, [videos, searchTerm, selectedCategory]);
-// 分页数据计算
+    // 分页数据计算
     const totalPages = Math.ceil(filteredVideos.length / pageSize);
     const paginatedVideos = useMemo(() => {
         const startIndex = (currentPage - 1) * pageSize;
@@ -430,10 +447,10 @@ function AdminDashboard() {
         
         return filteredVideos.slice(startIndex, endIndex);
     }, [filteredVideos, currentPage, pageSize]);
-// 检查当前页是否已全选
+    // 检查当前页是否已全选
     // 检查当前页可见的所有视频是否都包含在 selectedVideoIds 中
     const isAllSelected = paginatedVideos.length > 0 && paginatedVideos.every(v => selectedVideoIds.includes(v.id));
-// ----------------------------------------
+    // ----------------------------------------
     // 数据加载
     // ----------------------------------------
     useEffect(() => {
@@ -444,7 +461,7 @@ function AdminDashboard() {
             setLoading(false);
         });
     }, []);
-// ----------------------------------------
+    // ----------------------------------------
     // 业务逻辑函数
     // ----------------------------------------
 
@@ -461,27 +478,24 @@ function AdminDashboard() {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
-
     // 【新增】打开和关闭弹窗的函数
     const openBatchModal = useCallback(() => {
+        // 由于 isReadOnlyMode 已经为 false，所以总是可以打开
         if (!isReadOnlyMode) {
             setIsBatchModalOpen(true);
         }
     }, [isReadOnlyMode]);
-
     const closeBatchModal = useCallback(() => {
         setBatchInput(''); // 清空输入内容
         setIsBatchModalOpen(false);
     }, []);
-
-
-// 处理单个视频勾选
+    // 处理单个视频勾选
     const handleSelectVideo = useCallback((id) => {
         setSelectedVideoIds(prev =>
             prev.includes(id) ? prev.filter(vid => vid !== id) : [...prev, id]
         );
     }, []);
-// 处理全选/全不选：只针对当前页的视频进行操作
+    // 处理全选/全不选：只针对当前页的视频进行操作
     const handleSelectAll = useCallback((checked) => {
         const currentPageIds = paginatedVideos.map(v => v.id);
         
@@ -489,7 +503,6 @@ function AdminDashboard() {
             if (checked) {
                 // 全选：将当前页的所有 ID 加入到已选列表（使用 Set 避免重复）
                 const newIds = new Set([...prev, ...currentPageIds]);
-   
                 return Array.from(newIds);
             } else {
                 // 全不选：从已选列表中移除当前页的所有 ID
@@ -501,7 +514,9 @@ function AdminDashboard() {
         if (isReadOnlyMode) return;
         setFormData(video);
     }, []);
-    const handleSubmit = useCallback((e) => {
+    
+    // 【修改 3a】将 handleSubmit 修改为 async
+    const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         if (isReadOnlyMode) return;
 
@@ -512,7 +527,6 @@ function AdminDashboard() {
         }
 
         if (!Object.values(CATEGORY_MAP).includes(category)) {
-   
             alert(`档期分类代码 ${category} 无效！请使用预设的分类代码。`);
             return;
         }
@@ -523,43 +537,45 @@ function AdminDashboard() {
 
         if (formData.id) {
             updatedVideos = videos.map(v =>
-                v.id === formData.id ? { ...formData, generatedLink } 
-: v
+                v.id === formData.id ? { ...formData, generatedLink } : v
             );
-            alert('视频信息已更新！新的 JSON 列表文件已自动下载，请手动上传至 Cloudflare Object Storage。');
+            alert('视频信息已更新！正在自动上传新的 JSON 列表文件至 Cloudflare R2...');
         } else {
             const newVideo = {
                 ...formData,
                 id: uuidv4(),
-            
                 generatedLink
             };
             updatedVideos = [...videos, newVideo];
-            alert('视频信息已新增！新的 JSON 列表文件已自动下载，请手动上传至 Cloudflare Object Storage。');
+            alert('视频信息已新增！正在自动上传新的 JSON 列表文件至 Cloudflare R2...');
         }
 
         setVideos(updatedVideos);
-        downloadJsonFile(updatedVideos);
+        // 【替换调用】
+        await uploadJsonToR2(updatedVideos); 
         resetForm();
         setCurrentPage(1);
     }, [formData, videos, resetForm]);
 
 
-    const handleDelete = useCallback((id) => {
+    // 【修改 3b】将 handleDelete 修改为 async
+    const handleDelete = useCallback(async (id) => {
         if (isReadOnlyMode) return;
 
-        if (window.confirm('确定要删除这条链接吗？\n\n警告：这只会删除列表记录，你需要手动上传最新的 JSON 列表文件！')) {
+        if (window.confirm('确定要删除这条链接吗？\n\n警告：删除后将自动上传最新的 JSON 列表文件到 R2！')) {
             const updatedVideos = videos.filter(v => v.id !== id);
             setVideos(updatedVideos);
-            downloadJsonFile(updatedVideos);
-            alert('✅ 链接已删除！请记得手动上传最新的 JSON 列表文件到 Cloudflare Object Storage。');
-        
+            
+            // 【替换调用】
+            await uploadJsonToR2(updatedVideos);
+            
+            alert('✅ 链接已删除！最新的 JSON 列表文件已自动上传到 R2。');
             setCurrentPage(1);
         }
     }, [videos]);
     
-    // 【修改】处理批量新增/导入
-    const handleBatchSubmit = useCallback((e) => {
+    // 【修改 3c】将 handleBatchSubmit 修改为 async
+    const handleBatchSubmit = useCallback(async (e) => {
         e.preventDefault();
         if (isReadOnlyMode) return;
         if (!batchInput.trim()) {
@@ -589,7 +605,6 @@ function AdminDashboard() {
 
             // 解构赋值，可选的 expiryDate 默认为空字符串
             const [htmlName, category, title, videoUrl, expiryDateInput = ''] = parts;
-
             if (!htmlName || !category || !title || !videoUrl) {
                 errors.push(`第 ${index + 1} 行有必填字段为空。`);
                 return;
@@ -601,14 +616,14 @@ function AdminDashboard() {
             }
 
             const generatedLink = `${BASE_PATH}/player?category=${category}&name=${htmlName}`;
-            
             // 格式化 expiryDate (如果输入了 datetime-local 格式 YYYY-MM-DDTHH:MM)
             let formattedExpiryDate = expiryDateInput.replace('T', ' ').substring(0, 16);
             if (formattedExpiryDate && formattedExpiryDate.length === 16 && formattedExpiryDate.includes(' ')) {
                 // 转换成内部存储标准格式 (YYYY-MM-DD HH:MM:00)
-                formattedExpiryDate = formattedExpiryDate + ':00'; 
+                formattedExpiryDate = formattedExpiryDate + ':00';
             } else {
-                formattedExpiryDate = ''; // 视为无效或空
+                formattedExpiryDate = '';
+                // 视为无效或空
             }
 
             newVideos.push({
@@ -629,10 +644,13 @@ function AdminDashboard() {
 
         const updatedVideos = [...videos, ...newVideos];
         setVideos(updatedVideos);
-        setBatchInput(''); // 清空批量输入
+        setBatchInput('');
+        // 清空批量输入
 
-        downloadJsonFile(updatedVideos);
-        alert(`✅ 成功新增 ${newVideos.length} 条视频记录！新的 JSON 列表文件已自动下载，请手动上传至 Cloudflare Object Storage。`);
+        // 【替换调用】
+        await uploadJsonToR2(updatedVideos);
+
+        alert(`✅ 成功新增 ${newVideos.length} 条视频记录！最新的 JSON 列表文件已自动上传到 Cloudflare R2。`);
         resetForm();
         setCurrentPage(1);
         
@@ -640,7 +658,7 @@ function AdminDashboard() {
         closeBatchModal(); 
     }, [batchInput, videos, resetForm, closeBatchModal]);
     
-// 优化单次复制提示信息
+    // 优化单次复制提示信息
     const handleCopy = useCallback((video) => {
         // 确保使用完整的域名作为链接前缀
         const fullLink = `${window.location.origin}${video.generatedLink}`;
@@ -651,7 +669,6 @@ function AdminDashboard() {
         navigator.clipboard.writeText(fullLink)
             .then(() => alert(alertMessage))
             .catch(err => console.error('复制失败:', err));
-  
     }, []);
 
 
@@ -675,7 +692,6 @@ function AdminDashboard() {
             .then(() => {
                 alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n\n...`);
                 // 成功后清空勾选
-    
                 setSelectedVideoIds([]); 
             })
             .catch(err => {
@@ -718,18 +734,15 @@ function AdminDashboard() {
                 <input name="htmlName" value={formData.htmlName} onChange={handleChange} placeholder="HTML Name *" required disabled={isReadOnlyMode} style={styles.input} />
 
                 <select
-    
                     name="category"
                     value={formData.category}
                     onChange={handleChange}
                     required
                     disabled={isReadOnlyMode}
-    
                     style={styles.input}
                 >
                     <option value="" disabled>选择档期分类代码 *</option>
                     {Object.entries(CATEGORY_MAP).map(([label, value]) => (
-                      
                         <option key={value} value={value}>{label} ({value})</option>
                     ))}
                 </select>
@@ -742,16 +755,14 @@ function AdminDashboard() {
                     name="expiryDate" 
                     // 使用辅助函数将内部数据格式转换为 input 所需格式
                     value={formatInternalDateToDatetimeLocal(formData.expiryDate)} 
-           
                     onChange={(e) => {
                         const value = e.target.value;
-// 格式为 YYYY-MM-DDTHH:MM
+                        // 格式为 YYYY-MM-DDTHH:MM
                         let newExpiryDate = value;
                         if (value) {
                             // 将 input 值 (YYYY-MM-DDTHH:MM) 转换为内部存储标准格式 (YYYY-MM-DD HH:MM:00)
                             // 此时精确到秒为 00
-                            newExpiryDate = value.replace('T', ' ') 
-+ ':00'; 
+                            newExpiryDate = value.replace('T', ' ') + ':00'; 
                         } else {
                             // 清空时设置为空字符串
                             newExpiryDate = '';
@@ -764,7 +775,6 @@ function AdminDashboard() {
                     type="datetime-local" 
                     placeholder="页面有效过期时间 (年-月-日 时:分)" 
                     disabled={isReadOnlyMode} 
-            
                     style={styles.input} 
                 />
 
@@ -772,11 +782,11 @@ function AdminDashboard() {
 
             {!isReadOnlyMode && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                   
                     <button type="submit" style={{ ...styles.buttonBase, ...(formData.id ? styles.buttonWarning : styles.buttonSuccess) }}>
-                        {formData.id ? '更新并下载列表文件 (JSON)' : '新增并下载列表文件 (JSON)'}
+                        {/* 【修改】按钮文本 */}
+                        {formData.id ? '更新并自动上传列表文件 (JSON)' : '新增并自动上传列表文件 (JSON)'}
                     </button>
-                    
+       
                     {/* 【新增按钮】点击打开批量导入弹窗 */}
                     <button 
                         type="button" 
@@ -787,7 +797,6 @@ function AdminDashboard() {
                     </button>
 
                     {formData.id && (
-                  
                         <button type="button" onClick={resetForm} style={{ ...styles.buttonBase, ...styles.buttonSecondary }}>
                             取消编辑
                         </button>
@@ -796,14 +805,13 @@ function AdminDashboard() {
                 </div>
             )}
 
-            {isReadOnlyMode && <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式（上线环境），无法编辑或新增。</p>}
+            {isReadOnlyMode && 
+            <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式（上线环境），无法编辑或新增。</p>}
         </form>
     );
-
     // 【新增函数】渲染批量新增的模态弹窗
     const renderBatchModal = () => {
         if (!isBatchModalOpen) return null;
-
         return (
             <div style={styles.modalOverlay} onClick={closeBatchModal}>
                 <div 
@@ -819,7 +827,8 @@ function AdminDashboard() {
                         &times;
                     </button>
 
-                    <h3 style={{ ...styles.formTitle, borderBottom: '2px solid #20c997', marginBottom: '15px' }}>
+                    <h3 style={{ ...styles.formTitle, borderBottom: '2px solid #20c997', marginBottom: '15px' 
+                    }}>
                         批量新增/导入 (Batch Import)
                     </h3>
                     
@@ -851,7 +860,8 @@ function AdminDashboard() {
                                 onClick={handleBatchSubmit} 
                                 style={{ ...styles.buttonBase, backgroundColor: '#20c997' }}
                             >
-                                批量新增并下载列表文件 (JSON)
+                           {/* 【修改】按钮文本 */}
+                           批量新增并自动上传列表文件 (JSON)
                             </button>
                         </div>
                     )}
@@ -879,21 +889,17 @@ function AdminDashboard() {
                     key={i}
                     onClick={() => goToPage(i)}
                     style={{
- 
                         padding: '8px 12px',
                         border: '1px solid #ddd',
                         borderRadius: '4px',
-                       
                         cursor: 'pointer',
                         fontSize: '14px',
                         minWidth: '35px',
                         backgroundColor: i === currentPage ? '#007bff' : '#f0f0f0',
-                 
                         color: i === currentPage ? 'white' : '#333',
                         fontWeight: i === currentPage ? 600 : 'normal',
                     }}
                 >
-                   
                     {i}
                 </button>
             );
@@ -903,20 +909,17 @@ function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '20px', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '14px', color: '#6c757d', marginRight: '10px' }}>
                     共 {filteredVideos.length} 条记录 / 第 {currentPage} 页 / 共 {totalPages} 页
-           
                 </span>
 
                 <select onChange={handlePageSizeChange} value={pageSize} style={{ ...styles.input, width: 'auto', padding: '5px 8px', cursor: 'pointer' }}>
                     {PAGE_SIZE_OPTIONS.map(size => (
                         <option key={size} value={size}>{size} 条/页</option>
-                  
                     ))}
                 </select>
 
                 <button onClick={() => goToPage(1)} disabled={currentPage === 1} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>首页</button>
                 <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>上一页</button>
                 
-  
                 {pageButtons}
 
                 <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ ...styles.buttonBase, ...styles.buttonSecondary, minWidth: 'auto', padding: '8px 12px' }}>下一页</button>
@@ -932,25 +935,20 @@ function AdminDashboard() {
                 const isExpired = video.expiryDate && new Date(video.expiryDate) < new Date();
                 const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === video.category) || video.category;
                 
- 
                 return (
                     <div key={video.id} style={styles.mobileListItem}>
                         <div style={styles.mobileTitle}>
                             {highlightText(video.title, searchTerm)}
-        
                         </div>
                         {/* 勾选框 */}
                         <div style={styles.mobileMetaItem}>
                             <span><b>勾选:</b></span>
-     
                             <input 
                                 type="checkbox" 
                                 checked={selectedVideoIds.includes(video.id)} 
-          
                                 onChange={() => handleSelectVideo(video.id)} 
                                 style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
                             />
-          
                         </div>
                         <div style={styles.mobileMetaItem}>
                             <span><b>档期分类:</b></span>
@@ -963,13 +961,12 @@ function AdminDashboard() {
                                 {video.generatedLink}
                             </a>
                         </div>
-       
+                        
+                        
                         <div style={{ ...styles.mobileMetaItem, borderBottom: 'none' }}>
                             <span><b>过期时间:</b></span>
-                            <span style={{ color: isExpired ?
-                                '#dc3545' : '#28a745', fontWeight: 600 }}>
-                                {video.expiryDate ||
-                                '永久'}
+                            <span style={{ color: isExpired ? '#dc3545' : '#28a745', fontWeight: 600 }}>
+                                {video.expiryDate || '永久'}
                             </span>
                         </div>
                         
@@ -981,43 +978,38 @@ function AdminDashboard() {
                                         onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
                                     <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
                                 </>
-                         
                             )}
+        
                             {/* 复制按钮，传入整个 video 对象 */}
                             <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制链接</button>
                         </div>
-         
+           
                     </div>
                 );
             })}
         </div>
     );
-// 桌面端表格渲染
+    // 桌面端表格渲染
     const renderDesktopTable = () => (
         <div style={styles.tableContainer(isMobile)}>
             <table style={styles.table}>
                 <thead>
                     <tr style={{ backgroundColor: '#f8f9fa' }}>
                         {/* 全选/勾选列 */}
-  
                         <th style={{ ...styles.tableHeader, width: '40px' }}>
                             <input 
                                 type="checkbox" 
-           
                                 checked={isAllSelected} 
                                 onChange={(e) => handleSelectAll(e.target.checked)} 
                                 style={{ cursor: 'pointer' }}
-        
                             />
                         </th>
                         <th style={styles.tableHeader}>视频标题</th>
                         <th style={styles.tableHeader}>链接路由</th>
-      
                         <th style={styles.tableHeader}>档期分类</th>
                         <th style={styles.tableHeader}>过期时间</th>
                         <th style={styles.tableHeader}>操作</th>
                     </tr>
-           
                 </thead>
                 <tbody>
                     {paginatedVideos.map(video => {
@@ -1027,13 +1019,10 @@ function AdminDashboard() {
                             <tr key={video.id} style={styles.tableRow}>
                                 {/* 勾选单元格 */}
                                 <td style={styles.tableCell}>
-  
                                     <input 
                                         type="checkbox" 
-                        
                                         checked={selectedVideoIds.includes(video.id)} 
                                         onChange={() => handleSelectVideo(video.id)} 
-                                        
                                         style={{ cursor: 'pointer' }}
                                     />
                                 </td>
@@ -1050,20 +1039,16 @@ function AdminDashboard() {
                                     {categoryLabel}
                                 </td>
            
-                                <td style={{ ...styles.tableCell, color: isExpired ?
-                                    '#dc3545' : '#28a745', fontWeight: 600 }}>
-                                    {video.expiryDate ||
-                                    '永久'}
+                                <td style={{ ...styles.tableCell, color: isExpired ? '#dc3545' : '#28a745', fontWeight: 600 }}>
+                                    {video.expiryDate || '永久'}
                                 </td>
                                 <td style={styles.tableCell}>
                                    
                                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                         {!isReadOnlyMode && (
                                             <>
-     
                                                 <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
                                                 <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
- 
                                             </>
                                         )}
                  
@@ -1071,7 +1056,7 @@ function AdminDashboard() {
                                         <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制</button>
                              
                                     </div>
-                                </td>
+                              </td>
                             </tr>
                         );
                     })}
@@ -1079,7 +1064,7 @@ function AdminDashboard() {
             </table>
         </div>
     );
-// 渲染列表
+    // 渲染列表
     const renderList = () => (
         <div>
             <h3 style={styles.listHeader}>已生成的链接列表 ({filteredVideos.length} / {videos.length} 条)</h3>
@@ -1087,20 +1072,17 @@ function AdminDashboard() {
             {/* 搜索过滤区域 & 批量复制按钮 */}
             <div style={styles.filterContainer(isMobile)}>
                 <select
-                    
                     value={selectedCategory}
                     onChange={handleCategoryFilterChange}
                     style={{ ...styles.input, flex: isMobile ? 'none' : '200px', cursor: 'pointer' }}
                 >
                     {CATEGORY_OPTIONS.map(option => (
-            
                         <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                 </select>
 
                 <input
                     type="text"
-              
                     placeholder="🔍 搜索视频标题..."
                     value={searchTerm}
                     onChange={handleSearchChange}
@@ -1112,16 +1094,13 @@ function AdminDashboard() {
                 {selectedVideoIds.length > 0 && (
                     <button 
                         onClick={handleBatchCopy} 
-             
                         style={{ 
                             ...styles.buttonBase, 
                             ...styles.buttonPrimary,
-                            flex: isMobile ?
-                                'none' : '200px',
+                            flex: isMobile ? 'none' : '200px',
                             backgroundColor: '#20c997', // 醒目的绿色
                         }}
                     >
-                       
                         批量复制 ({selectedVideoIds.length} 条)
                     </button>
                 )}
@@ -1129,8 +1108,7 @@ function AdminDashboard() {
             </div>
             
             {/* 根据屏幕宽度选择渲染表格还是卡片列表 */}
-            {paginatedVideos.length > 0 ?
-                (isMobile ? renderMobileList() : renderDesktopTable()) : (
+            {paginatedVideos.length > 0 ? (isMobile ? renderMobileList() : renderDesktopTable()) : (
                 <p style={{ textAlign: 'center', marginTop: '20px', color: '#6c757d' }}>
                     {searchTerm || selectedCategory ? `未找到匹配结果。` : '当前列表为空。'}
                 </p>
