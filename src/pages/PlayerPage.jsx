@@ -246,12 +246,20 @@ const PlayerPage = () => {
 
     return (
         <div style={{ fontFamily: 'sans-serif', backgroundColor: '#f1f3f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+
             {/* 顶部导航栏 */}
             <nav className="top-navbar" style={styles.topNavbar}>
-                <div style={styles.logo}>您正在观看</div>
-                <h2 style={styles.navTitle}>{videoInfo.title}</h2>
+            {/* Logo 容器 */}
+            <div style={styles.navLogoWrapper}>
+                <img 
+                src="/rsv-b.svg" 
+                alt="RSV Logo" 
+                style={styles.navLogo}
+                />
+            </div>
+            <div style={styles.logo}>您正在观看</div>
+            <h2 style={styles.navTitle}>{videoInfo.title}</h2>
             </nav>
-
             {/* 主内容区：可滚动 */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 <div style={styles.mainContent}>
@@ -320,6 +328,20 @@ const PlayerPage = () => {
 // 样式定义
 // ----------------------------------------
 const styles = {
+    // === 导航栏 Logo 样式 ===
+    navLogoWrapper: {
+    position: 'absolute',
+    left: '16px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    height: '32px', // 可根据实际 SVG 调整
+    },
+    navLogo: {
+    height: '100%',
+    width: 'auto',
+    objectFit: 'contain',
+    display: 'block',
+    },
     topNavbar: {
         position: 'sticky',
         top: 0,

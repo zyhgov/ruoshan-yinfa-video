@@ -6,13 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 // 核心配置与常量
 // -------------------------------------------------------------------------
 const BASE_PATH = '';
-// ❌ 删除或注释掉原来的：
-// const isReadOnlyMode = false;
-// ✅ 替换为：
-const isReadOnlyMode = localStorage.getItem('hasEditPermission') !== 'true';
-
+// 【已移除】const isReadOnlyMode = false; 
+// 改为在组件内动态判断
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
-
 const CATEGORY_MAP = {
     "百岁健康班": "bsjkb",
     "大道仁医": "ddry",
@@ -148,6 +144,18 @@ const styles = {
         fontWeight: 600,
         fontSize: '28px',
     },
+// === Logo 样式 ===
+logoWrapper: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '16px', // Logo 和标题之间的间距
+},
+logo: {
+  height: '40px',       // 固定高度，保持比例
+  width: 'auto',        // 宽度自适应
+  objectFit: 'contain', // 防止变形
+  flexShrink: 0,        // 防止在小屏被压缩
+},
     headerSubtitle: {
         fontSize: '16px',
         fontWeight: 'normal',
@@ -338,6 +346,22 @@ function AdminDashboard() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
 
+    // 【关键修改】动态权限状态
+    const [isReadOnlyMode, setIsReadOnlyMode] = useState(true);
+
+    // 初始化权限状态
+    useEffect(() => {
+        const checkPermission = () => {
+            const hasEdit = localStorage.getItem('hasEditPermission') === 'true';
+            setIsReadOnlyMode(!hasEdit);
+        };
+        checkPermission();
+
+        // 可选：监听其他标签页的 storage 变化（多标签同步）
+        window.addEventListener('storage', checkPermission);
+        return () => window.removeEventListener('storage', checkPermission);
+    }, []);
+
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -355,8 +379,6 @@ function AdminDashboard() {
     });
     const [batchInput, setBatchInput] = useState('');
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-
-    // 【新增】编辑弹窗状态
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingVideo, setEditingVideo] = useState(null);
 
@@ -394,6 +416,7 @@ function AdminDashboard() {
 
     const handleLogout = useCallback(() => {
         localStorage.removeItem('authToken');
+        localStorage.removeItem('hasEditPermission'); // 👈 清除权限
         navigate('/admin', { replace: true });
     }, [navigate]);
 
@@ -437,20 +460,17 @@ function AdminDashboard() {
         });
     }, [paginatedVideos]);
 
-    // 【修改】handleEdit 改为打开弹窗
     const handleEdit = useCallback((video) => {
         if (isReadOnlyMode) return;
         setEditingVideo(video);
         setEditModalOpen(true);
     }, [isReadOnlyMode]);
 
-    // 【新增】编辑弹窗内的字段变更
     const handleEditChange = useCallback((e) => {
         const { name, value } = e.target;
         setEditingVideo(prev => ({ ...prev, [name]: value }));
     }, []);
 
-    // 【新增】编辑弹窗内的 expiryDate 变更
     const handleExpiryDateChangeForEdit = useCallback((e) => {
         const value = e.target.value;
         let newExpiryDate = '';
@@ -460,7 +480,6 @@ function AdminDashboard() {
         setEditingVideo(prev => ({ ...prev, expiryDate: newExpiryDate }));
     }, []);
 
-    // 【新增】编辑弹窗提交
     const handleEditSubmit = useCallback(async (e) => {
         e.preventDefault();
         if (isReadOnlyMode || !editingVideo) return;
@@ -504,7 +523,7 @@ function AdminDashboard() {
             updatedVideos = videos.map(v =>
                 v.id === formData.id ? { ...formData, generatedLink } : v
             );
-            alert('视频信息已更新！正在自动上传新的 JSON 列表文件至 Cloudflare R2...');
+            alert('视频信息已更新！正在自动上传新的数据列表文件至 Cloudflare R2 对象存储');
         } else {
             const newVideo = {
                 ...formData,
@@ -512,7 +531,7 @@ function AdminDashboard() {
                 generatedLink
             };
             updatedVideos = [...videos, newVideo];
-            alert('视频信息已新增！正在自动上传新的 JSON 列表文件至 Cloudflare R2...');
+            alert('视频信息已新增！正在自动上传新的数据列表文件至 Cloudflare R2 对象存储');
         }
         setVideos(updatedVideos);
         await uploadJsonToR2(updatedVideos);
@@ -522,11 +541,11 @@ function AdminDashboard() {
 
     const handleDelete = useCallback(async (id) => {
         if (isReadOnlyMode) return;
-        if (window.confirm('确定要删除这条链接吗？\n警告：删除后将自动上传最新的 JSON 列表文件到 R2！')) {
+        if (window.confirm('确定要删除这条链接吗？\n警告：删除后将自动上传最新的数据列表文件到 Cloudflare R2！')) {
             const updatedVideos = videos.filter(v => v.id !== id);
             setVideos(updatedVideos);
             await uploadJsonToR2(updatedVideos);
-            alert('✅ 链接已删除！最新的 JSON 列表文件已自动上传到 R2。');
+            alert('✅ 链接已删除！最新的数据列表文件到 Cloudflare R2。');
             setCurrentPage(1);
         }
     }, [videos]);
@@ -586,7 +605,7 @@ function AdminDashboard() {
         setVideos(updatedVideos);
         setBatchInput('');
         await uploadJsonToR2(updatedVideos);
-        alert(`✅ 成功新增 ${newVideos.length} 条视频记录！最新的 JSON 列表文件已自动上传到 Cloudflare R2。`);
+        alert(`✅ 成功新增 ${newVideos.length} 条视频记录！最新的数据列表文件已自动上传到 Cloudflare R2。`);
         resetForm();
         setCurrentPage(1);
         closeBatchModal();
@@ -702,7 +721,7 @@ function AdminDashboard() {
                 </div>
             )}
             {isReadOnlyMode && 
-            <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式（上线环境），无法编辑或新增。</p>}
+            <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式，无法编辑或新增。</p>}
         </form>
     );
 
@@ -752,10 +771,8 @@ video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`
         );
     };
 
-    // 【新增】渲染编辑弹窗
     const renderEditModal = () => {
         if (!editModalOpen || !editingVideo) return null;
-
         return (
             <div style={styles.modalOverlay} onClick={() => setEditModalOpen(false)}>
                 <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -1035,30 +1052,36 @@ video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`
     );
 
     return (
-        <div style={styles.pageContainer}>
-            <div style={styles.header}>
-                <h1 style={styles.headerTitle}>
-                    视频管理后台 <span style={styles.headerSubtitle}>({isReadOnlyMode ? '上线只读模式' : '本地开发模式'})</span>
-                </h1>
-                <button onClick={handleLogout} 
-                    style={{ ...styles.buttonBase, ...styles.buttonDanger }}>
-                    退出登录
-                </button>
-            </div>
-            {renderForm()}
-            {renderList()}
-            <div style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)' }}>
-                <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
-                <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
-                    {Object.entries(CATEGORY_MAP).map(([label, value]) => (
-                        <li key={value}>{label} 对应代码: <b>{value}</b></li>
-                    ))}
-                </ul>
-            </div>
-            {renderBatchModal()}
-            {/* 【关键】渲染编辑弹窗 */}
-            {renderEditModal()}
-        </div>
+<div style={styles.pageContainer}>
+  <div style={styles.header}>
+    {/* 👇 Logo 容器 */}
+    <div style={styles.logoWrapper}>
+<a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+  <img src="/rsv-b.svg" alt="RSV Logo" style={styles.logo} />
+</a>
+      <h1 style={styles.headerTitle}>
+        RSV 管理后台 <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
+      </h1>
+    </div>
+
+    <button onClick={handleLogout} 
+      style={{ ...styles.buttonBase, ...styles.buttonDanger }}>
+      退出登录
+    </button>
+  </div>
+  {renderForm()}
+  {renderList()}
+  <div style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)' }}>
+    <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
+    <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
+      {Object.entries(CATEGORY_MAP).map(([label, value]) => (
+        <li key={value}>{label} 对应代码: <b>{value}</b></li>
+      ))}
+    </ul>
+  </div>
+  {renderBatchModal()}
+  {renderEditModal()}
+</div>
     );
 }
 
