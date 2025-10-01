@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 // 核心配置与常量
 // -------------------------------------------------------------------------
 
-// 【核心修改点】视频列表的 Cloudflare 完整加载链接
+// 【核心配置】视频列表的 Cloudflare 完整加载链接
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 // const CLOUDFLARE_VIDEO_LIST_URL = 'http://localhost:5173/video_list.json';
 
@@ -22,12 +22,14 @@ const CATEGORY_MAP = {
 // 异步加载视频列表数据
 const loadVideos = async () => {
     try {
-        // 【核心修改点】使用 Cloudflare 加速链接代替相对路径
-        const response = await fetch(CLOUDFLARE_VIDEO_LIST_URL); 
+        // **【缓存穿透修复】**：添加时间戳查询参数，强制 Cloudflare 每次都拉取最新文件
+        const cacheBustingUrl = `${CLOUDFLARE_VIDEO_LIST_URL}?t=${new Date().getTime()}`;
+        
+        const response = await fetch(cacheBustingUrl); 
         
         if (!response.ok) {
+            // 错误信息仍使用原 URL
             console.error(`❌ 无法加载 ${CLOUDFLARE_VIDEO_LIST_URL} 文件。状态码: ${response.status}`);
-            // 抛出错误以在组件中捕获
             throw new Error(`无法从 Cloudflare 加载列表: 状态码 ${response.status}。请检查 CORS 配置！`);
         }
         
@@ -35,7 +37,6 @@ const loadVideos = async () => {
         return Array.isArray(data) ? data : [];
     } catch (error) {
         console.error("加载 video_list.json 失败:", error);
-        // 确保抛出字符串或 Error 对象
         throw new Error("加载视频列表数据失败，请检查网络或 CORS 配置。");
     }
 };
@@ -87,30 +88,47 @@ const PlayerPage = () => {
     }, [category, name]);
 
     // ----------------------------------------
-    // 视频信息计算 (已修改为支持精确到秒的过期时间)
+    // 视频信息计算 (已修复日期解析逻辑和显示格式)
     // ----------------------------------------
     const videoInfo = useMemo(() => {
         if (!videoData) return {};
         
         const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === videoData.category) || videoData.category;
-        const expiryDateStr = videoData.expiryDate;
+        const expiryDateStr = videoData.expiryDate; // e.g., "2025-10-31 23:38:00"
         
         // 检查是否过期（仅用于初始化判断）
         let isExpired = false;
         let expiryTimestamp = null;
 
         if (expiryDateStr) {
-            const dateOnlyFormat = expiryDateStr.length <= 10; 
-            const expiryDate = new Date(expiryDateStr);
+            // 【日期解析修复】确保使用本地时区解析 YYYY-MM-DD HH:MM:SS
+            // 兼容性更好的手动解析
+            const [datePart, timePart] = expiryDateStr.split(' ');
             
-            if (!isNaN(expiryDate.getTime())) {
-                expiryTimestamp = expiryDate.getTime();
+            if (datePart && timePart) {
+                // 处理 YYYY-MM-DD HH:MM:SS 格式
+                const [year, month, day] = datePart.split('-').map(Number);
+                const [hour, minute, second] = timePart.split(':').map(Number);
+                
+                // 使用 new Date(year, monthIndex, day, hours, minutes, seconds) 构造本地日期
+                // month - 1 是因为 JavaScript 月份从 0 开始 (10月是 9)
+                const expiryDate = new Date(year, month - 1, day, hour, minute, second || 0);
 
-                if (dateOnlyFormat) {
-                    // 纯日期格式：加一天减一毫秒，在当天最后一毫秒过期
-                    // 注意：这里的计算是基于本地时区的，生产环境需要确保服务器时间一致性。
-                    expiryTimestamp += (24 * 60 * 60 * 1000) - 1; 
-                } 
+                if (!isNaN(expiryDate.getTime())) {
+                    expiryTimestamp = expiryDate.getTime();
+                    
+                    const now = new Date().getTime();
+                    // 检查当前时间是否大于或等于过期时间
+                    if (now >= expiryTimestamp) {
+                        isExpired = true;
+                    }
+                }
+            } else if (datePart && datePart.length === 10) {
+                // 兼容 AdminDashboard 可能只返回日期的情况（只包含 YYYY-MM-DD）
+                const [year, month, day] = datePart.split('-').map(Number);
+                const expiryDate = new Date(year, month - 1, day);
+                // 确保在当天的最后一毫秒过期
+                expiryTimestamp = expiryDate.getTime() + (24 * 60 * 60 * 1000) - 1; 
 
                 const now = new Date().getTime();
                 if (now > expiryTimestamp) {
@@ -119,8 +137,11 @@ const PlayerPage = () => {
             }
         }
         
+        // 【格式化展示】只保留到分钟
+        const formattedExpiryStr = expiryDateStr ? expiryDateStr.substring(0, 16) : '永久有效';
+
         const expiryDisplay = expiryDateStr 
-            ? `有效截止: ${expiryDateStr}` 
+            ? `有效截止: ${formattedExpiryStr}` 
             : '永久有效';
 
         // **【重要】** 将 useMemo 计算出的过期状态同步到 Live 状态
@@ -133,7 +154,7 @@ const PlayerPage = () => {
             expiryDisplay,
             videoUrl: videoData.videoUrl,
             title: videoData.title,
-            expiryDateStr: videoData.expiryDate,
+            expiryDateStr: formattedExpiryStr, // 使用格式化后的字符串
             // **【新增】** 暴露计算出的时间戳，供 Live Check 使用
             expiryTimestamp: expiryTimestamp 
         };
@@ -160,7 +181,7 @@ const PlayerPage = () => {
             const now = new Date().getTime();
             
             // 检查当前时间是否超过过期时间戳
-            if (now > videoInfo.expiryTimestamp) {
+            if (now >= videoInfo.expiryTimestamp) {
                 // 如果过期，更新状态，这将触发 UI 重新渲染
                 setIsExpiredLive(true); 
                 
@@ -237,9 +258,8 @@ const PlayerPage = () => {
                     <div style={styles.videoPlayerContainer}>
                         <video 
                             id="videoPlayer"
-                            // 当过期时，如果 src 仍有值，浏览器可能尝试加载，因此最好在过期时将 src 置空或使用已有的逻辑清空。
-                            // 但在这里，我们依赖 useEffect 里的逻辑来主动清空 src。
-                            src={videoInfo.videoUrl} 
+                            // 仅在未过期时设置 src
+                            src={!finalIsExpired ? videoInfo.videoUrl : undefined} 
                             controls
                             // 使用 finalIsExpired 来决定是否自动播放
                             autoPlay={!finalIsExpired} 
