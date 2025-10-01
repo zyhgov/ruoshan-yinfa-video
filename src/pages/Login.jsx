@@ -1,9 +1,11 @@
+// Login.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [permissionKey, setPermissionKey] = useState(''); // 新增状态
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -16,9 +18,16 @@ function Login() {
     e.preventDefault();
     const ADMIN_USER = 'admin';
     const ADMIN_PASS = 'admin';
+    const EDIT_PERMISSION_KEY = 'qq123123'; // 权限密钥
 
     if (username === ADMIN_USER && password === ADMIN_PASS) {
+      // 判断是否输入了正确的权限密钥
+      const hasEditPermission = permissionKey === EDIT_PERMISSION_KEY;
+
+      // 存储登录状态和权限
       localStorage.setItem('authToken', 'logged_in_admin_token');
+      localStorage.setItem('hasEditPermission', String(hasEditPermission)); // 存为字符串
+
       navigate('/admin/dashboard', { replace: true });
     } else {
       alert('账号或密码错误');
@@ -69,132 +78,132 @@ function Login() {
             />
           </div>
 
+          {/* 👇 新增：权限密钥输入框（选填） */}
+          <div style={styles.inputGroup}>
+            <label htmlFor="permissionKey" style={styles.label}>🔐 增删改权限密钥（选填）</label>
+            <input
+              id="permissionKey"
+              type="password"
+              value={permissionKey}
+              onChange={(e) => setPermissionKey(e.target.value)}
+              style={styles.input}
+              placeholder="输入密钥可获得编辑权限"
+              autoComplete="off"
+            />
+          </div>
+
           <button type="submit" style={styles.button}>
             登录系统
           </button>
 
-          <p style={styles.note}>⚠️ 上线环境即便是管理员访问也无法编辑内容 ⚠️</p>
+          <p style={styles.note}>⚠️ 未输入权限密钥时，仅可查看和复制链接 ⚠️</p>
         </form>
       </div>
     </div>
   );
 }
 
-// 美化后的样式
+// ...（你的 styles 保持不变）...
+
+// 样式保持不变
 const styles = {
-  pageContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#f0f2f5', // 柔和浅灰背景
-    padding: '20px',
-    fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
-  },
-  loginCard: {
-    width: '100%',
-    maxWidth: '420px',
-    padding: '40px',
-    backgroundColor: 'white',
-    borderRadius: '16px',
-    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 6px rgba(0, 0, 0, 0.05)',
-    border: '1px solid rgba(0, 0, 0, 0.05)',
-    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-  },
-    // 👇 新增：Logo 容器
-  logoContainer: {
-    position: 'absolute',
-    top: '16px',
-    left: '16px',
-    width: '40px',
-    height: '40px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-
-  // 👇 新增：Logo 图片样式
-  logo: {
-    width: '100%',
-    height: 'auto',
-    maxWidth: '40px',
-    maxHeight: '40px',
-    objectFit: 'contain', // 保持比例，避免变形
-  },
-  header: {
-    textAlign: 'center',
-    marginBottom: '32px',
-  },
-  title: {
-    margin: '0 0 12px',
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#2d3748',
-    lineHeight: 1.3,
-  },
-  subtitle: {
-    fontSize: '15px',
-    color: '#718096',
-    margin: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  inputGroup: {
-    marginBottom: '24px',
-  },
-  label: {
-    display: 'block',
-    marginBottom: '8px',
-    fontSize: '15px',
-    fontWeight: '600',
-    color: '#4a5568',
-  },
-  input: {
-    width: '100%',
-    padding: '14px 16px',
-    fontSize: '16px',
-    border: '1px solid #e2e8f0',
-    borderRadius: '10px',
-    backgroundColor: '#f8fafc',
-    transition: 'all 0.3s ease',
-    boxSizing: 'border-box',
-  },
-  // 聚焦状态
-  inputFocus: {
-    // 通过 :focus 伪类无法在内联样式中实现，但我们可以用 JS 模拟（这里不推荐）
-    // 所以建议：保持简单，或使用 CSS-in-JS 库（如 styled-components）
-    // 当前方案：依赖浏览器默认聚焦 + 边框颜色变化（通过 border-color）
-  },
-  button: {
-    width: '100%',
-    padding: '14px',
-    fontSize: '17px',
-    fontWeight: '600',
-    color: 'white',
-    backgroundColor: '#3182ce', // 蓝色主色
-    border: 'none',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s, transform 0.2s',
-    marginTop: '8px',
-  },
-  buttonHover: {
-    // 内联样式无法直接写 :hover，但可通过 onMouseEnter/Leave 实现（不推荐复杂化）
-    // 所以这里依赖 CSS 的默认行为，或接受简单 hover 效果
-  },
-  note: {
-    marginTop: '24px',
-    textAlign: 'center',
-    fontSize: '13px',
-    color: '#e53e3e',
-    lineHeight: 1.5,
-  },
+    pageContainer: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        backgroundColor: '#f0f2f5', 
+        padding: '20px',
+        fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+    },
+    loginCard: {
+        width: '100%',
+        maxWidth: '420px',
+        padding: '40px',
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 6px rgba(0, 0, 0, 0.05)',
+        border: '1px solid rgba(0, 0, 0, 0.05)',
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+    },
+    logoContainer: {
+        position: 'absolute',
+        top: '16px',
+        left: '16px',
+        width: '40px',
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+    },
+    logo: {
+        width: '100%',
+        height: 'auto',
+        maxWidth: '40px',
+        maxHeight: '40px',
+        objectFit: 'contain', 
+    },
+    header: {
+        textAlign: 'center',
+        marginBottom: '32px',
+    },
+    title: {
+        margin: '0 0 12px',
+        fontSize: '28px',
+        fontWeight: '700',
+        color: '#2d3748',
+        lineHeight: 1.3,
+    },
+    subtitle: {
+        fontSize: '15px',
+        color: '#718096',
+        margin: 0,
+    },
+    form: {
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    inputGroup: {
+        marginBottom: '24px',
+    },
+    label: {
+        display: 'block',
+        marginBottom: '8px',
+        fontSize: '15px',
+        fontWeight: '600',
+        color: '#4a5568',
+    },
+    input: {
+        width: '100%',
+        padding: '14px 16px',
+        fontSize: '16px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '10px',
+        backgroundColor: '#f8fafc',
+        transition: 'all 0.3s ease',
+        boxSizing: 'border-box',
+    },
+    button: {
+        width: '100%',
+        padding: '14px',
+        fontSize: '17px',
+        fontWeight: '600',
+        color: 'white',
+        backgroundColor: '#3182ce', 
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        transition: 'background-color 0.3s, transform 0.2s',
+        marginTop: '8px',
+    },
+    note: {
+        marginTop: '24px',
+        textAlign: 'center',
+        fontSize: '13px',
+        color: '#e53e3e',
+        lineHeight: 1.5,
+    },
 };
-
-// 为 input 和 button 添加动态聚焦/悬停效果（可选增强）
-// 但 React 内联样式不支持 :focus/:hover，所以这里我们通过全局 CSS 补充（推荐）
 
 export default Login;

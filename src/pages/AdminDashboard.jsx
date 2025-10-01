@@ -6,7 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 // 核心配置与常量
 // -------------------------------------------------------------------------
 const BASE_PATH = '';
-const isReadOnlyMode = false; 
+// ❌ 删除或注释掉原来的：
+// const isReadOnlyMode = false;
+// ✅ 替换为：
+const isReadOnlyMode = localStorage.getItem('hasEditPermission') !== 'true';
+
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 
 const CATEGORY_MAP = {
