@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 
 // 【核心修改点】视频列表的 Cloudflare 完整加载链接
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
+// const CLOUDFLARE_VIDEO_LIST_URL = 'http://localhost:5173/video_list.json';
 
 // 固定的档期分类列表 (复制自 AdminDashboard.jsx)
 const CATEGORY_MAP = {

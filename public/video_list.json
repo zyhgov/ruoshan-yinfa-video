@@ -4471,5 +4471,95 @@
     "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/7228779e-3c27-4067-b2de-95e174627249.mp4",
     "expiryDate": "2025-10-07 17:40:00",
     "generatedLink": "/player?category=bsjkb&name=bsjkb21"
+  },
+  {
+    "id": "63ee7c33-a6dc-4e9b-86ff-931568d8c3d8",
+    "htmlName": "qjqfgy03",
+    "category": "qjqf",
+    "title": "公益节目三",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/c6f183d3-eddd-4e3f-84aa-f8ee412f04f3.mp4",
+    "expiryDate": "2025-10-31 09:29:00",
+    "generatedLink": "/player?category=qjqf&name=qjqfgy03"
+  },
+  {
+    "id": "ad80bc6e-8fe0-48f3-839b-26ebaf227cde",
+    "htmlName": "qjqfgy02",
+    "category": "qjqf",
+    "title": "公益节目二",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/86273d06-cc59-48c6-9d25-1beb9735ae68.mp4",
+    "expiryDate": "2025-10-31 09:30:00",
+    "generatedLink": "/player?category=qjqf&name=qjqfgy02"
+  },
+  {
+    "id": "32fb99e0-2dd1-4b48-9a16-953652e5683a",
+    "htmlName": "qjqfgy01",
+    "category": "qjqf",
+    "title": "公益节目一",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/ef19aebf-78c9-46e4-af23-37e7bb811a0b.mp4",
+    "expiryDate": "2025-10-31 09:31:00",
+    "generatedLink": "/player?category=qjqf&name=qjqfgy01"
+  },
+  {
+    "id": "98d0131a-c8b7-4d18-b88d-27e478b45e1f",
+    "htmlName": "gybnxgy07",
+    "category": "gybnx",
+    "title": "公益节目【第7期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/02c3008f-0ae5-428f-8e7a-dcb9a453a85e.mp4",
+    "expiryDate": "2025-10-31 09:32:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy07"
+  },
+  {
+    "id": "6ca1723c-77c4-4335-b0f6-ddb71693c2c7",
+    "htmlName": "gybnxgy06",
+    "category": "gybnx",
+    "title": "公益节目【第6期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/af644ce5-277b-43fd-9932-dc6653cbb7d0.mp4",
+    "expiryDate": "2025-10-31 09:32:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy06"
+  },
+  {
+    "id": "dd1a5aaa-417a-46b5-894f-47bdf542741d",
+    "htmlName": "gybnxgy05",
+    "category": "gybnx",
+    "title": "公益节目【第5期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/96644881-0a23-4587-956f-c31c4114abb4.mp4",
+    "expiryDate": "2025-10-31 09:33:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy05"
+  },
+  {
+    "id": "e2f2d9d8-c011-46e5-9c8d-04ebe9e178c6",
+    "htmlName": "gybnxgy04",
+    "category": "gybnx",
+    "title": "公益节目【第4期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/d1e72875-6daf-4462-a67b-0b9ac9646ab0.mp4",
+    "expiryDate": "2025-10-31 09:34:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy04"
+  },
+  {
+    "id": "14426ee4-0ebf-47d5-a168-ee2eae65c03a",
+    "htmlName": "gybnxgy03",
+    "category": "gybnx",
+    "title": "公益节目【第3期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/03dbc3b8-8cb7-45ee-b10c-d41039c20ae2.mp4",
+    "expiryDate": "2025-10-31 09:35:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy03"
+  },
+  {
+    "id": "c04d8523-2b6d-41ed-a7b0-c8332baf9738",
+    "htmlName": "gybnxgy02",
+    "category": "gybnx",
+    "title": "公益节目【第2期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/8b9c4bcb-42be-4ed5-a554-d82135f4174a.mp4",
+    "expiryDate": "2025-10-31 09:36:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy02"
+  },
+  {
+    "id": "d41b6b2e-7222-4b54-b76c-1ddf3c733b43",
+    "htmlName": "gybnxgy01",
+    "category": "gybnx",
+    "title": "公益节目【第1期】",
+    "videoUrl": "https://oss.rsjk.org.cn/ruo-shan/video/a5657777-0bc1-4fd3-85d7-618f509c2e29.mp4",
+    "expiryDate": "2025-10-31 09:36:00",
+    "generatedLink": "/player?category=gybnx&name=gybnxgy01"
   }
 ]
