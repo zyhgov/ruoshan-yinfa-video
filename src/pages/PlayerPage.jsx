@@ -11,12 +11,12 @@ const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 
 // 固定的档期分类列表 (复制自 AdminDashboard.jsx)
 const CATEGORY_MAP = {
-    "百岁健康班": "bsjkb",
-    "大道仁医": "ddry",
-    "防危度健": "fwdj",
-    "国医伴你行": "gybnx",
-    "美食每刻": "msmk",
-    "奇酒奇方": "qjqf",
+    "第1频道": "bsjkb",
+    "第2频道": "ddry",
+    "第3频道": "fwdj",
+    "第4频道": "gybnx",
+    "第5频道": "msmk",
+    "第6频道": "qjqf",
 };
 
 // 异步加载视频列表数据
@@ -310,13 +310,7 @@ const PlayerPage = () => {
 
             {/* 👇 举报区域：固定在页面底部（文档流最后） */}
             <div style={styles.reportFooter}>
-                <a
-                    href="https://jsj.top/f/eA7DUc"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={styles.reportLink}
-                >
-                    <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }}></i>
+                <a href="https://jsj.top/f/eA7DUc" target="_blank" rel="noopener noreferrer" style={styles.reportLink}>
                     网络违法违规内容举报
                 </a>
             </div>

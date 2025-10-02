@@ -10,12 +10,12 @@ const BASE_PATH = '';
 // 改为在组件内动态判断
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 const CATEGORY_MAP = {
-    "百岁健康班": "bsjkb",
-    "大道仁医": "ddry",
-    "防危度健": "fwdj",
-    "国医伴你行": "gybnx",
-    "美食每刻": "msmk",
-    "奇酒奇方": "qjqf",
+    "第1频道": "bsjkb",
+    "第2频道": "ddry",
+    "第3频道": "fwdj",
+    "第4频道": "gybnx",
+    "第5频道": "msmk",
+    "第6频道": "qjqf",
 };
 const CATEGORY_OPTIONS = [
     { label: "所有分类", value: "" },
@@ -380,6 +380,7 @@ function AdminDashboard() {
     const [batchInput, setBatchInput] = useState('');
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
+    const [showComplianceNotice, setShowComplianceNotice] = useState(false);
     const [editingVideo, setEditingVideo] = useState(null);
 
     const filteredVideos = useMemo(() => {
@@ -412,6 +413,13 @@ function AdminDashboard() {
         }).catch(() => {
             setLoading(false);
         });
+    }, []);
+    // 【新增】首次访问时显示合规提示
+    useEffect(() => {
+    const hasSeenNotice = localStorage.getItem('complianceNoticeSeen');
+    if (!hasSeenNotice) {
+        setShowComplianceNotice(true);
+    }
     }, []);
 
     const handleLogout = useCallback(() => {
@@ -842,7 +850,73 @@ video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`
             </div>
         );
     };
+// 【新增】合规提示弹窗
+const renderComplianceNotice = () => {
+  if (!showComplianceNotice) return null;
 
+  const handleClose = () => {
+    localStorage.setItem('complianceNoticeSeen', 'true');
+    setShowComplianceNotice(false);
+  };
+
+  return (
+    <div style={styles.modalOverlay} onClick={handleClose}>
+      <div style={{ ...styles.modalContent, maxWidth: '700px' }} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.modalCloseButton} onClick={handleClose}>&times;</button>
+        <h3 style={{ color: '#d32f2f', fontWeight: 700, fontSize: '22px', marginBottom: '16px', textAlign: 'center' }}>
+          ⚠️ 重要合规整改通知 ⚠️
+        </h3>
+        <p style={{ fontSize: '15px', lineHeight: 1.6, color: '#333', marginBottom: '20px' }}>
+          为严格遵守《<b>微信外部链接内容管理规范</b>》，避免因高风险关键词导致<b>域名被封禁</b>，系统已对视频分类名称进行如下整改：
+        </p>
+        <div style={{ backgroundColor: '#fff8e1', border: '1px solid #ffd54f', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+          <p style={{ margin: '0 0 12px 0', fontWeight: 600, color: '#e65100' }}>🔴 以下敏感词已全部删除：</p>
+          <p style={{ margin: 0, fontSize: '14px', color: '#d32f2f' }}>
+            百岁健康班、大道仁医、防危度健、国医伴你行、美食每刻、奇酒奇方、羊奶粉
+          </p>
+        </div>
+        <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: '#1976d2' }}>✅ 新旧分类对应关系：</p>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <thead>
+            <tr>
+              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>原分类名称</th>
+              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>新分类名称</th>
+              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>对应代码</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>百岁健康班</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第1频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>bsjkb</td></tr>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>大道仁医</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第2频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>ddry</td></tr>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>防危度健</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第3频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>fwdj</td></tr>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>国医伴你行</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第4频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>gybnx</td></tr>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>美食每刻</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第5频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>msmk</td></tr>
+            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>奇酒奇方</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第6频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>qjqf</td></tr>
+          </tbody>
+        </table>
+        <p style={{ fontSize: '14px', color: '#555', marginTop: '16px', fontStyle: 'italic' }}>
+          💡 此调整仅影响前端显示名称，<b>URL 路由参数和数据库结构保持不变</b>，不影响现有链接访问。
+        </p>
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button
+            onClick={handleClose}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '16px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            我已知晓
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
     const renderPagination = () => {
         if (totalPages <= 1 && filteredVideos.length === 0) return null;
         const maxButtons = isMobile ? 3 : 5;
@@ -1081,6 +1155,7 @@ video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`
   </div>
   {renderBatchModal()}
   {renderEditModal()}
+  {renderComplianceNotice()}
 </div>
     );
 }
