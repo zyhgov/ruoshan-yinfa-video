@@ -376,6 +376,7 @@ function AdminDashboard() {
         title: '',
         videoUrl: '',
         expiryDate: '',
+        remarks: '',
     });
     const [batchInput, setBatchInput] = useState('');
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
@@ -430,7 +431,7 @@ function AdminDashboard() {
 
     const resetForm = useCallback(() => {
         setFormData({
-            id: null, htmlName: '', category: '', title: '', videoUrl: '', expiryDate: '',
+            id: null, htmlName: '', category: '', title: '', videoUrl: '', expiryDate: '', remarks: '',
         });
     }, []);
 
@@ -708,6 +709,14 @@ function AdminDashboard() {
                     disabled={isReadOnlyMode} 
                     style={styles.input} 
                 />
+                <input 
+                    name="remarks" 
+                    value={formData.remarks} 
+                    onChange={handleChange} 
+                    placeholder="备注（选填）" 
+                    disabled={isReadOnlyMode} 
+                    style={styles.input} 
+                />
             </div>
             {!isReadOnlyMode && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -745,15 +754,17 @@ function AdminDashboard() {
                     <p style={{ color: '#6c757d', marginBottom: '15px', fontSize: '14px' }}>
                         将多条视频数据粘贴到下方，每行一条记录，字段间用英文竖线 `|` 管道符号分隔。字段顺序是：
                         <br />
-                        HTML Name | 分类代码 | 视频标题 | 视频直链 | 页面有效过期时间 (可选) 例如2025-12-31T23:59
+                        HTML Name | 分类代码 | 视频标题 | 视频直链 | 页面有效过期时间 (可选) 例如2025-12-31T23:59 | 备注（可选）
+                        <br />
+                        <b style={{ color: '#d32f2f' }}>⚠️ 视频标题请勿包含“医、健、康、百岁、奇方”等敏感词！</b>
                     </p>
                     <textarea 
                         name="batchInput" 
                         value={batchInput} 
                         onChange={(e) => setBatchInput(e.target.value)} 
                         placeholder={`示例数据模板 (复制此行到下方即可):
-video-001 | ddry | 【大道仁医】第1期 | https://example.com/v1.mp4 | 2025-12-31T23:59
-video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`}
+video-001 | ddry | 第1期 | https://example.com/v1.mp4 | 2025-12-31T23:59 | 备注
+video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                         required 
                         disabled={isReadOnlyMode} 
                         style={{ 
@@ -830,6 +841,13 @@ video-002 | bsjkb | 【百岁健康班】第2期 | https://example.com/v2.mp4 |`
                                 onChange={handleExpiryDateChangeForEdit}
                                 type="datetime-local"
                                 placeholder="页面有效过期时间"
+                                style={styles.input}
+                            />
+                            <input
+                                name="remarks"
+                                value={editingVideo.remarks || ''}
+                                onChange={handleEditChange}
+                                placeholder="备注（选填）"
                                 style={styles.input}
                             />
                         </div>
@@ -1002,6 +1020,10 @@ const renderComplianceNotice = () => {
                                 {video.expiryDate || '永久'}
                             </span>
                         </div>
+                        <div style={styles.mobileMetaItem}>
+                        <span><b>备注:</b></span>
+                        <span>{video.remarks || '无'}</span>
+                        </div>
                         <div style={styles.mobileActions}>
                             {!isReadOnlyMode && (
                                 <>
@@ -1034,6 +1056,7 @@ const renderComplianceNotice = () => {
                         <th style={styles.tableHeader}>链接路由</th>
                         <th style={styles.tableHeader}>档期分类</th>
                         <th style={styles.tableHeader}>过期时间</th>
+                        <th style={styles.tableHeader}>备注</th>
                         <th style={styles.tableHeader}>操作</th>
                     </tr>
                 </thead>
@@ -1062,6 +1085,9 @@ const renderComplianceNotice = () => {
                                 </td>
                                 <td style={{ ...styles.tableCell, color: isExpired ? '#dc3545' : '#28a745', fontWeight: 600 }}>
                                     {video.expiryDate || '永久'}
+                                </td>
+                                <td style={styles.tableCell}>
+                                {video.remarks || '-'}
                                 </td>
                                 <td style={styles.tableCell}>
                                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
