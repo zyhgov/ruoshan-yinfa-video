@@ -148,10 +148,10 @@ const styles = {
 logoWrapper: {
   display: 'flex',
   alignItems: 'center',
-  gap: '16px', // Logo 和标题之间的间距
+  gap: '15px', // Logo 和标题之间的间距
 },
 logo: {
-  height: '40px',       // 固定高度，保持比例
+  height: '45px',       // 固定高度，保持比例
   width: 'auto',        // 宽度自适应
   objectFit: 'contain', // 防止变形
   flexShrink: 0,        // 防止在小屏被压缩
@@ -160,7 +160,7 @@ logo: {
         fontSize: '16px',
         fontWeight: 'normal',
         color: '#6c757d',
-        marginLeft: '10px',
+        // marginLeft: '10px',
     },
     card: (isReadOnly) => ({
         border: 'none',
@@ -1157,10 +1157,10 @@ const renderComplianceNotice = () => {
     {/* 👇 Logo 容器 */}
     <div style={styles.logoWrapper}>
 <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-  <img src="/rsv-b.svg" alt="RSV Logo" style={styles.logo} />
+  <img src="/rsvideo.svg" alt="RSV Logo" style={styles.logo} />
 </a>
       <h1 style={styles.headerTitle}>
-        RSV 管理后台 <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
+        RSV 管理后台 <br /> <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
       </h1>
     </div>
 

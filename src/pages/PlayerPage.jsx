@@ -252,7 +252,8 @@ const PlayerPage = () => {
             {/* Logo 容器 */}
             <div style={styles.navLogoWrapper}>
                 <img 
-                src="/rsv-b.svg" 
+                // src="/rsv-b.svg" 
+                src="rsvideo.svg"
                 alt="RSV Logo" 
                 style={styles.navLogo}
                 />
@@ -325,10 +326,10 @@ const styles = {
     // === 导航栏 Logo 样式 ===
     navLogoWrapper: {
     position: 'absolute',
-    left: '16px',
+    left: '20px',
     top: '50%',
     transform: 'translateY(-50%)',
-    height: '32px', // 可根据实际 SVG 调整
+    height: '45px', // 可根据实际 SVG 调整
     },
     navLogo: {
     height: '100%',

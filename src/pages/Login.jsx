@@ -61,7 +61,7 @@ function Login() {
       <div style={styles.loginCard}>
         <div style={styles.logoContainer}>
           <img 
-            src="/rsv-b.svg" 
+            src="/rsvideo.svg" 
             alt="Logo" 
             style={styles.logo}
           />
@@ -165,8 +165,8 @@ const styles = {
     position: 'absolute',
     top: '20px',
     left: '25px',
-    width: '50px',
-    height: '50px',
+    width: '60px',
+    height: '60px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
