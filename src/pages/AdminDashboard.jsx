@@ -622,10 +622,19 @@ function AdminDashboard() {
 
     const handleCopy = useCallback((video) => {
         const fullLink = `${window.location.origin}${video.generatedLink}`;
-        const alertMessage = `✅ ${video.title} 链接已复制: ${fullLink}`;
-        navigator.clipboard.writeText(fullLink)
+        const expiry = video.expiryDate || '永久';
+        const remarks = video.remarks || '无备注';
+        const copyText = `${video.title}
+    链接: ${fullLink}
+    过期时间: ${expiry}
+    备注: ${remarks}`;
+        const alertMessage = `✅ ${video.title} 的完整信息已复制！`;
+        navigator.clipboard.writeText(copyText)
             .then(() => alert(alertMessage))
-            .catch(err => console.error('复制失败:', err));
+            .catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请确保在 HTTPS 或 localhost 环境下操作。');
+            });
     }, []);
 
     const handleBatchCopy = useCallback(() => {
@@ -636,8 +645,16 @@ function AdminDashboard() {
         const selectedVideosData = videos.filter(v => selectedVideoIds.includes(v.id));
         const baseUrl = window.location.origin;
         const copyText = selectedVideosData
-            .map(video => `${video.title}\n${baseUrl}${video.generatedLink}`)
-            .join('\n');
+            .map(video => {
+                const fullLink = `${baseUrl}${video.generatedLink}`;
+                const expiry = video.expiryDate || '永久';
+                const remarks = video.remarks || '无备注';
+                return `${video.title}
+        链接: ${fullLink}
+        过期时间: ${expiry}
+        备注: ${remarks}`;
+            })
+            .join('\n\n'); // 用两个换行分隔每条记录，更清晰
         navigator.clipboard.writeText(copyText)
             .then(() => {
                 alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n...`);

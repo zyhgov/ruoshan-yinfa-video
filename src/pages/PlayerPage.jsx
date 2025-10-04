@@ -4,12 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 // -------------------------------------------------------------------------
 // 核心配置与常量
 // -------------------------------------------------------------------------
-
-// 【核心配置】视频列表的 Cloudflare 完整加载链接
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
-// const CLOUDFLARE_VIDEO_LIST_URL = 'http://localhost:5173/video_list.json';
-
-// 固定的档期分类列表 (复制自 AdminDashboard.jsx)
 const CATEGORY_MAP = {
     "第1频道": "bsjkb",
     "第2频道": "ddry",
@@ -19,20 +14,14 @@ const CATEGORY_MAP = {
     "第6频道": "qjqf",
 };
 
-// 异步加载视频列表数据
 const loadVideos = async () => {
     try {
-        // **【缓存穿透修复】**：添加时间戳查询参数，强制 Cloudflare 每次都拉取最新文件
         const cacheBustingUrl = `${CLOUDFLARE_VIDEO_LIST_URL}?t=${new Date().getTime()}`;
-        
-        const response = await fetch(cacheBustingUrl); 
-        
+        const response = await fetch(cacheBustingUrl);
         if (!response.ok) {
-            // 错误信息仍使用原 URL
             console.error(`❌ 无法加载 ${CLOUDFLARE_VIDEO_LIST_URL} 文件。状态码: ${response.status}`);
             throw new Error(`无法从 Cloudflare 加载列表: 状态码 ${response.status}。请检查 CORS 配置！`);
         }
-        
         const data = await response.json();
         return Array.isArray(data) ? data : [];
     } catch (error) {
@@ -43,17 +32,199 @@ const loadVideos = async () => {
 
 const PlayerPage = () => {
     const [searchParams] = useSearchParams();
+    // ---------------------- 所有 Hooks 必须在顶部 ----------------------
     const [videoData, setVideoData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    // 从 URL 获取参数
     const category = searchParams.get('category');
     const name = searchParams.get('name');
-
-    // **【新增状态】** 用于实时强制更新过期状态
     const [isExpiredLive, setIsExpiredLive] = useState(false);
 
+    /**
+     * 【修复点 1】将 CSS 注入的 useEffect 移动到顶层。
+     * 无论组件处于何种状态（loading 或 not loading），这个 Hook 都必须被调用。
+     */
+    useEffect(() => {
+        const styleId = 'cube-loader-styles';
+        if (document.getElementById(styleId)) return;
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+.loader {
+    margin: 0 auto;
+    display: flex;
+    width: 12rem;
+    height: 12rem;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    border-radius: 50%;
+    border: 0.4rem solid #52c5ff;
+}
+.container[class*="1"] { animation-delay: 1s; }
+.container[class*="2"] { animation-delay: 1.3s; }
+.container[class*="3"] { animation-delay: 1.6s; }
+.container[class*="4"] { animation-delay: 1.9s; }
+.tars {
+    z-index: 0;
+    position: absolute;
+    height: 100px;
+    width: 130px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    transform-style: preserve-3d;
+    animation: rotateX3D 6s ease-in-out infinite;
+}
+.container {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: rotateY3D 3s ease-in infinite both;
+}
+.shape {
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    position: relative;
+    z-index: -1;
+}
+.shape div {
+    display: block;
+    position: absolute;
+    text-align: center;
+}
+.container:nth-child(2) .f::after,
+.container:nth-child(3) .f::after {
+    position: absolute;
+    content: '';
+    width: 100%;
+    z-index: -1;
+    height: 20px;
+    background-image: radial-gradient(#54ff6e 2px, transparent 1%);
+    background-size: 20px 5px;
+    left: 0;
+    top: 20%;
+    border: 0;
+    animation: animMove 2s linear infinite alternate-reverse;
+    overflow: hidden;
+}
+.container:nth-child(2) .f::before,
+.container:nth-child(3) .f::before {
+    position: absolute;
+    content: '';
+    width: 85%;
+    z-index: -1;
+    height: 20px;
+    left: 0;
+    top: 20%;
+    border: 0;
+    background: #181818;
+    border: 2px solid #52c5ff;
+    overflow: hidden;
+}
+.container:nth-child(1) .f::before,
+.container:nth-child(1) .r::before,
+.container:nth-child(1) .l::before,
+.container:nth-child(4) .f::before,
+.container:nth-child(4) .r::before,
+.container:nth-child(4) .l::before {
+    position: absolute;
+    content: '';
+    width: 95%;
+    height: 5px;
+    left: 0;
+    top: 25%;
+    border: 1px solid #52c5ff;
+    overflow: hidden;
+}
+.container:nth-child(1) .b::before,
+.container:nth-child(4) .b::before {
+    position: absolute;
+    content: '';
+    width: 95%;
+    z-index: -1;
+    height: 5px;
+    left: 0;
+    top: 69%;
+    border: 1px solid #52c5ff;
+    overflow: hidden;
+}
+.f {
+    transform: rotateY(0deg) translateZ(15px);
+    border-radius: 2px;
+    overflow: hidden;
+    transform-style: preserve-3d;
+}
+.b {
+    transform: rotateX(180deg) translateZ(15px);
+    border-radius: 2px;
+}
+.f, .b {
+    width: 30px;
+    height: 100px;
+    background: #212121;
+    box-shadow: inset 0 0 0 2px #52c5ff;
+    border: 2px solid #52c5ff;
+}
+.l {
+    transform: rotateY(-90deg) translateZ(0px);
+    border-radius: 2px;
+}
+.r {
+    transform: rotateY(90deg) translateZ(-30px);
+    border-radius: 2px;
+}
+.l, .r {
+    width: 30px;
+    height: 100px;
+    left: 15px;
+    position: relative;
+    z-index: -1;
+    background: #212121;
+    box-shadow: inset 0 0 0 2px #52c5ff;
+    border: 2px solid #52c5ff;
+}
+.t {
+    transform: rotateX(90deg) translateZ(40px);
+    border-radius: 2px;
+}
+.bot {
+    transform: rotateX(-90deg) translateZ(60px);
+    border-radius: 2px;
+}
+.t, .bot {
+    width: 30px;
+    height: 30px;
+    top: 25px;
+    position: relative;
+    z-index: -1;
+    background: #212121;
+    box-shadow: inset 0 0 0 2px #52c5ff;
+    border: 2px solid #52c5ff;
+}
+@keyframes rotateY3D {
+    0% { transform: translateZ(0px) rotateX(0); }
+    50% { transform: translateZ(0px) rotateX(-360deg); }
+    100% { transform: translateZ(0px) rotateX(-360deg); }
+}
+@keyframes rotateX3D {
+    0% { transform: translateX(0px) rotateY(0); }
+    50% { transform: translateX(0px) rotateY(180deg); }
+    100% { transform: translateX(0px) rotateY(360deg); }
+}
+@keyframes animMove {
+    0% { transform: translateX(20px); }
+    100% { transform: translateX(-10px); }
+}
+        `;
+        document.head.appendChild(style);
+    }, []);
+
+    // ---------------------- 其他副作用 ----------------------
     useEffect(() => {
         const fetchVideo = async () => {
             if (!category || !name) {
@@ -61,92 +232,62 @@ const PlayerPage = () => {
                 setLoading(false);
                 return;
             }
-
             try {
-                // 确保 loadVideos 抛出的错误被捕获
                 const allVideos = await loadVideos();
-                
-                // 根据 URL 参数查找对应的视频
-                const foundVideo = allVideos.find(v => 
+                const foundVideo = allVideos.find(v =>
                     v.category === category && v.htmlName === name
                 );
-
                 if (foundVideo) {
                     setVideoData(foundVideo);
                 } else {
                     setError(`未找到匹配的视频信息：分类=${category}, 链接名=${name}`);
                 }
             } catch (err) {
-                // 捕获 loadVideos 抛出的错误信息
-                setError(err.message); 
+                setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchVideo();
     }, [category, name]);
 
-    // ----------------------------------------
-    // 视频信息计算 (已修复日期解析逻辑和显示格式)
-    // ----------------------------------------
+    // ✅ 修复：useMemo 仅用于计算，不包含副作用
     const videoInfo = useMemo(() => {
         if (!videoData) return {};
-        
         const categoryLabel = Object.keys(CATEGORY_MAP).find(key => CATEGORY_MAP[key] === videoData.category) || videoData.category;
-        const expiryDateStr = videoData.expiryDate; // e.g., "2025-10-31 23:38:00"
-        
-        // 检查是否过期（仅用于初始化判断）
+        const expiryDateStr = videoData.expiryDate;
+
         let isExpired = false;
         let expiryTimestamp = null;
 
         if (expiryDateStr) {
-            // 【日期解析修复】确保使用本地时区解析 YYYY-MM-DD HH:MM:SS
-            // 兼容性更好的手动解析
             const [datePart, timePart] = expiryDateStr.split(' ');
-            
             if (datePart && timePart) {
-                // 处理 YYYY-MM-DD HH:MM:SS 格式
                 const [year, month, day] = datePart.split('-').map(Number);
                 const [hour, minute, second] = timePart.split(':').map(Number);
-                
-                // 使用 new Date(year, monthIndex, day, hours, minutes, seconds) 构造本地日期
-                // month - 1 是因为 JavaScript 月份从 0 开始 (10月是 9)
                 const expiryDate = new Date(year, month - 1, day, hour, minute, second || 0);
-
                 if (!isNaN(expiryDate.getTime())) {
                     expiryTimestamp = expiryDate.getTime();
-                    
                     const now = new Date().getTime();
-                    // 检查当前时间是否大于或等于过期时间
                     if (now >= expiryTimestamp) {
                         isExpired = true;
                     }
                 }
             } else if (datePart && datePart.length === 10) {
-                // 兼容 AdminDashboard 可能只返回日期的情况（只包含 YYYY-MM-DD）
                 const [year, month, day] = datePart.split('-').map(Number);
                 const expiryDate = new Date(year, month - 1, day);
-                // 确保在当天的最后一毫秒过期
-                expiryTimestamp = expiryDate.getTime() + (24 * 60 * 60 * 1000) - 1; 
-
+                expiryTimestamp = expiryDate.getTime() + (24 * 60 * 60 * 1000) - 1;
                 const now = new Date().getTime();
                 if (now > expiryTimestamp) {
                     isExpired = true;
                 }
             }
         }
-        
-        // 【格式化展示】只保留到分钟
+
         const formattedExpiryStr = expiryDateStr ? expiryDateStr.substring(0, 16) : '永久有效';
-
-        const expiryDisplay = expiryDateStr 
-            ? `有效截止: ${formattedExpiryStr}` 
+        const expiryDisplay = expiryDateStr
+            ? `有效截止: ${formattedExpiryStr}`
             : '永久有效';
-
-        // **【重要】** 将 useMemo 计算出的过期状态同步到 Live 状态
-        // 初始状态下 isExpiredLive 依赖这个计算结果
-        setIsExpiredLive(isExpired);
 
         return {
             categoryLabel,
@@ -154,74 +295,49 @@ const PlayerPage = () => {
             expiryDisplay,
             videoUrl: videoData.videoUrl,
             title: videoData.title,
-            expiryDateStr: formattedExpiryStr, // 使用格式化后的字符串
-            // **【新增】** 暴露计算出的时间戳，供 Live Check 使用
-            expiryTimestamp: expiryTimestamp 
+            expiryDateStr: formattedExpiryStr,
+            expiryTimestamp,
         };
     }, [videoData]);
-    
-    // 👇 动态设置页面标题
+
+    // ✅ 合法同步初始过期状态
+    useEffect(() => {
+        if (videoInfo.isExpired !== undefined) {
+            setIsExpiredLive(videoInfo.isExpired);
+        }
+    }, [videoInfo.isExpired]);
+
     useEffect(() => {
         if (videoInfo.title && videoInfo.categoryLabel) {
             document.title = `${videoInfo.title} | ${videoInfo.categoryLabel}`;
         }
     }, [videoInfo.title, videoInfo.categoryLabel]);
 
-
-    // ----------------------------------------
-    // 【核心 BUG 修复】实时过期检查和强制停止
-    // ----------------------------------------
     useEffect(() => {
-        if (!videoInfo.expiryTimestamp) {
-            // 如果永久有效，则无需设置定时器
-            return;
-        }
-
+        if (!videoInfo.expiryTimestamp) return;
         const checkExpiration = () => {
             const now = new Date().getTime();
-            
-            // 检查当前时间是否超过过期时间戳
             if (now >= videoInfo.expiryTimestamp) {
-                // 如果过期，更新状态，这将触发 UI 重新渲染
-                setIsExpiredLive(true); 
-                
-                // 强制停止视频播放
+                setIsExpiredLive(true);
                 const videoElement = document.getElementById('videoPlayer');
                 if (videoElement) {
-                    // 停止播放
-                    if (!videoElement.paused) {
-                        videoElement.pause();
-                    }
-                    // 清空 src 属性阻止任何进一步加载
+                    if (!videoElement.paused) videoElement.pause();
                     videoElement.src = '';
                     videoElement.load();
                 }
             }
         };
-
-        // 设置定时器，每 5 秒（5000 毫秒）检查一次
-        const intervalId = setInterval(checkExpiration, 5000); 
-
-        // 组件卸载时或依赖项变化时清除定时器
+        const intervalId = setInterval(checkExpiration, 5000);
         return () => clearInterval(intervalId);
-
-    }, [videoInfo.expiryTimestamp]); // 依赖于计算出的过期时间戳
-
-
-    // ----------------------------------------
-    // 渲染加载中、错误或播放页
-    // ----------------------------------------
-
-    // **【重要】** 渲染时使用实时状态 isExpiredLive
-    const finalIsExpired = videoInfo.isExpired || isExpiredLive; 
+    }, [videoInfo.expiryTimestamp]);
 
     const renderMessage = (title, message, isError = false) => (
-        <div style={{ 
-            maxWidth: '600px', 
-            margin: '50px auto', 
-            padding: '30px', 
-            borderRadius: '10px', 
-            backgroundColor: isError ? '#f8d7da' : '#fff3cd', 
+        <div style={{
+            maxWidth: '600px',
+            margin: '50px auto',
+            padding: '30px',
+            borderRadius: '10px',
+            backgroundColor: isError ? '#f8d7da' : '#fff3cd',
             border: isError ? '1px solid #f5c6cb' : '1px solid #ffeeba',
             color: isError ? '#721c24' : '#856404',
             textAlign: 'center',
@@ -231,9 +347,80 @@ const PlayerPage = () => {
             <p style={{ fontSize: '16px' }}>{message}</p>
         </div>
     );
-    
+
+    // ---------------------- 渲染逻辑：条件渲染必须在 Hooks 之后 ----------------------
+
+    // 🌀 加载状态：带动效
     if (loading) {
-        return renderMessage("📺 数据加载中...", "正在动态加载视频信息，请稍候...");
+        return (
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '100vh',
+                backgroundColor: '#f1f3f5',
+                fontFamily: 'sans-serif',
+                padding: '20px',
+                boxSizing: 'border-box'
+            }}>
+                <div className="loader">
+                    <div className="tars">
+                        <div className="container 1">
+                            <div className="shape">
+                                <div className="f"></div>
+                                <div className="b"></div>
+                                <div className="l"></div>
+                                <div className="r"></div>
+                                <div className="t"></div>
+                                <div className="bot"></div>
+                            </div>
+                        </div>
+                        <div className="container 2">
+                            <div className="shape">
+                                <div className="f"></div>
+                                <div className="b"></div>
+                                <div className="l"></div>
+                                <div className="r"></div>
+                                <div className="t"></div>
+                                <div className="bot"></div>
+                            </div>
+                        </div>
+                        <div className="container 3">
+                            <div className="shape">
+                                <div className="f"></div>
+                                <div className="b"></div>
+                                <div className="l"></div>
+                                <div className="r"></div>
+                                <div className="t"></div>
+                                <div className="bot"></div>
+                            </div>
+                        </div>
+                        <div className="container 4">
+                            <div className="shape">
+                                <div className="f"></div>
+                                <div className="b"></div>
+                                <div className="l"></div>
+                                <div className="r"></div>
+                                <div className="t"></div>
+                                <div className="bot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style={{
+                    marginTop: '30px',
+                    textAlign: 'center',
+                    maxWidth: '500px',
+                    color: '#4b5563',
+                    fontSize: '16px',
+                    lineHeight: 1.6
+                }}>
+                    <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#1e293b' }}>📺 数据加载中...</h2>
+                    <p>正在动态加载视频信息，请稍候...</p>
+                </div>
+            </div>
+        );
     }
 
     if (error) {
@@ -244,45 +431,39 @@ const PlayerPage = () => {
         return renderMessage("未找到视频", "未找到匹配的视频信息，请检查 URL 参数。", true);
     }
 
+    const finalIsExpired = videoInfo.isExpired || isExpiredLive;
+
     return (
         <div style={{ fontFamily: 'sans-serif', backgroundColor: '#f1f3f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-
-            {/* 顶部导航栏 */}
             <nav className="top-navbar" style={styles.topNavbar}>
-            {/* Logo 容器 */}
-            <div style={styles.navLogoWrapper}>
-                <img 
-                // src="/rsv-b.svg" 
-                src="rsvideo.svg"
-                alt="RSV Logo" 
-                style={styles.navLogo}
-                />
-            </div>
-            <div style={styles.logo}>您正在观看</div>
-            <h2 style={styles.navTitle}>{videoInfo.title}</h2>
+                <div style={styles.navLogoWrapper}>
+                    <img
+                        src="rsvideo.svg"
+                        alt="RSV Logo"
+                        style={styles.navLogo}
+                    />
+                </div>
+                <div style={styles.logo}>您正在观看</div>
+                <h2 style={styles.navTitle}>{videoInfo.title}</h2>
             </nav>
-            {/* 主内容区：可滚动 */}
+
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 <div style={styles.mainContent}>
                     <div style={styles.videoPlayerContainer}>
-                        <video 
+                        <video
                             id="videoPlayer"
-                            // 仅在未过期时设置 src
-                            src={!finalIsExpired ? videoInfo.videoUrl : undefined} 
+                            src={!finalIsExpired ? videoInfo.videoUrl : undefined}
                             controls
-                            // 使用 finalIsExpired 来决定是否自动播放
-                            autoPlay={!finalIsExpired} 
+                            autoPlay={!finalIsExpired}
                             playsInline
                             preload="metadata"
                             controlsList="nodownload nofullscreen noremoteplayback"
                             onContextMenu={(e) => e.preventDefault()}
                             disablePictureInPicture
-                            // 使用 finalIsExpired 来决定可见性
                             style={{ ...styles.videoPlayer, visibility: finalIsExpired ? 'hidden' : 'visible' }}
                         >
                             您的浏览器不支持 HTML5 视频。
                         </video>
-                        
                         {finalIsExpired && (
                             <div style={styles.expiredOverlay}>
                                 <h2 style={styles.expiredOverlayH2}>⚠️ 视频已过期 ⚠️</h2>
@@ -294,7 +475,6 @@ const PlayerPage = () => {
                             </div>
                         )}
                     </div>
-
                     <div style={styles.videoInfoArea}>
                         <h1 style={styles.videoTitle}>{videoInfo.title}</h1>
                         <div style={styles.metaContainer}>
@@ -309,7 +489,6 @@ const PlayerPage = () => {
                 </div>
             </div>
 
-            {/* 👇 举报区域：固定在页面底部（文档流最后） */}
             <div style={styles.reportFooter}>
                 <a href="https://jsj.top/f/eA7DUc" target="_blank" rel="noopener noreferrer" style={styles.reportLink}>
                     网络违法违规内容举报
@@ -319,28 +498,24 @@ const PlayerPage = () => {
     );
 };
 
-// ----------------------------------------
-// 样式定义
-// ----------------------------------------
 const styles = {
-    // === 导航栏 Logo 样式 ===
     navLogoWrapper: {
-    position: 'absolute',
-    left: '20px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    height: '45px', // 可根据实际 SVG 调整
+        position: 'absolute',
+        left: '20px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        height: '45px',
     },
     navLogo: {
-    height: '100%',
-    width: 'auto',
-    objectFit: 'contain',
-    display: 'block',
+        height: '100%',
+        width: 'auto',
+        objectFit: 'contain',
+        display: 'block',
     },
     topNavbar: {
         position: 'sticky',
         top: 0,
-        width: '100%', 
+        width: '100%',
         background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 100%)',
         color: 'white',
         padding: '12px 20px',
@@ -352,7 +527,7 @@ const styles = {
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        boxSizing: 'border-box', 
+        boxSizing: 'border-box',
     },
     logo: {
         fontSize: '18px',
@@ -372,7 +547,7 @@ const styles = {
         maxWidth: '1200px',
         margin: '0 auto',
         padding: '0 16px',
-        boxSizing: 'border-box', 
+        boxSizing: 'border-box',
     },
     videoPlayerContainer: {
         position: 'relative',
@@ -382,7 +557,7 @@ const styles = {
         marginTop: '16px',
         maxWidth: '100%',
         boxShadow: '0 6px 12px rgba(0, 0, 0, 0.2)',
-        paddingBottom: '56.25%', 
+        paddingBottom: '56.25%',
         height: 0,
     },
     reportFooter: {
