@@ -22,6 +22,72 @@ const CATEGORY_OPTIONS = [
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 const FONT_FAMILY = 'MiSans-Semibold';
 
+// 🆕 短信发送辅助函数
+const SMS_UTILS = {
+    // 检测是否为移动设备
+    isMobileDevice: () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
+    
+    // 检测是否为iOS
+    isIOS: () => /iPhone|iPad|iPod/i.test(navigator.userAgent),
+    
+    // 检测链接是否包含 & 符号（可能被截断）
+    hasAmpersand: (text) => text.includes('&'),
+    
+    // 智能编码短信内容
+    encodeMessage: (message) => {
+        // 方案1: 使用换行符分隔参数（某些设备支持）
+        const messageWithLineBreaks = message.replace(/&/g, '\n&');
+        
+        // 方案2: 双重URL编码
+        const doubleEncoded = encodeURIComponent(message);
+        
+        // 方案3: 替换 & 为全角符号（用户可以看到完整链接，但不可点击）
+        const messageWithFullwidth = message.replace(/&/g, '＆');
+        
+        return {
+            original: message,
+            lineBreaks: messageWithLineBreaks,
+            doubleEncoded: doubleEncoded,
+            fullwidth: messageWithFullwidth
+        };
+    },
+    
+    // 生成SMS URI
+    buildSmsUri: (phone, message, useDoubleEncode = true) => {
+        const isIOS = SMS_UTILS.isIOS();
+        const separator = isIOS ? '&' : '?';
+        
+        // 使用双重编码策略
+        let encodedMessage = encodeURIComponent(message);
+        
+        // iOS 需要额外处理
+        if (useDoubleEncode && isIOS) {
+            encodedMessage = encodeURIComponent(encodedMessage);
+        }
+        
+        return `sms:${phone}${separator}body=${encodedMessage}`;
+    },
+    
+    // 复制到剪贴板
+    copyToClipboard: async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.error('复制失败:', err);
+            return false;
+        }
+    },
+    
+    // 生成用户友好的短信预览
+    generatePreview: (message, maxLength = 200) => {
+        if (message.length <= maxLength) {
+            return message;
+        }
+        return message.substring(0, maxLength) + '...\n\n[内容较长，已省略]';
+    }
+};
+
 // ----------------------------------------------------
 // 辅助函数：数据读写（基于 JSON 文件）
 // ----------------------------------------------------
@@ -377,13 +443,15 @@ function AdminDashboard() {
     const [showComplianceNotice, setShowComplianceNotice] = useState(false);
     const [editingVideo, setEditingVideo] = useState(null);
     
-    // 🆕 短信功能相关状态（系统短信版本）
+    // 🆕 短信功能相关状态（增强版）
     const [smsModalOpen, setSmsModalOpen] = useState(false);
     const [smsTarget, setSmsTarget] = useState(null);
     const [phoneNumber, setPhoneNumber] = useState('');
     const [customMessage, setCustomMessage] = useState('');
     const [batchSmsModalOpen, setBatchSmsModalOpen] = useState(false);
     const [batchPhones, setBatchPhones] = useState('');
+    const [showSmsPreview, setShowSmsPreview] = useState(false);
+    const [smsPreviewData, setSmsPreviewData] = useState(null);
 
     const filteredVideos = useMemo(() => {
         let result = videos;
@@ -668,7 +736,7 @@ function AdminDashboard() {
             });
     }, [selectedVideoIds, videos]);
 
-    // 🆕 打开单条发送模态框（系统短信版本）
+    // 🆕 打开单条发送模态框（增强版）
     const handleOpenSmsModal = useCallback((video) => {
         setSmsTarget(video);
         setPhoneNumber('');
@@ -689,7 +757,7 @@ function AdminDashboard() {
         setBatchSmsModalOpen(true);
     }, [selectedVideoIds]);
 
-    // 🆕 单条发送短信（使用系统短信应用）
+    // 🆕 单条发送短信（健壮版本）
     const handleSendSms = useCallback(() => {
         if (!phoneNumber) {
             alert('请输入手机号！');
@@ -707,16 +775,17 @@ function AdminDashboard() {
             return;
         }
         
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isMobileDevice = SMS_UTILS.isMobileDevice();
+        const hasAmpersand = SMS_UTILS.hasAmpersand(customMessage);
         
+        // 桌面端：直接复制
         if (!isMobileDevice) {
-            // 桌面端：复制到剪贴板
-            navigator.clipboard.writeText(customMessage)
+            SMS_UTILS.copyToClipboard(customMessage)
                 .then(() => {
-                    alert(`⚠️ 检测到您在桌面设备上操作\n\n短信内容已复制到剪贴板！\n\n请在手机上打开短信应用，发送到 ${phoneNumber}，粘贴内容后手动发送。\n\n━━━━━━━━━━━━━━━━\n${customMessage}`);
+                    alert(`✅ 短信内容已复制到剪贴板！\n\n请在手机上打开短信应用，发送到 ${phoneNumber}，粘贴内容后手动发送。\n\n━━━━━━━━━━━━━━━━\n${SMS_UTILS.generatePreview(customMessage)}`);
                 })
                 .catch(() => {
-                    alert(`⚠️ 检测到您在桌面设备上操作\n\n请复制以下内容到手机短信应用发送到 ${phoneNumber}：\n\n━━━━━━━━━━━━━━━━\n${customMessage}`);
+                    alert(`⚠️ 请复制以下内容到手机短信应用发送到 ${phoneNumber}：\n\n━━━━━━━━━━━━━━━━\n${customMessage}`);
                 });
             setSmsModalOpen(false);
             setPhoneNumber('');
@@ -725,27 +794,86 @@ function AdminDashboard() {
             return;
         }
         
-        // 移动端：使用 sms: URI 协议
-        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        const separator = isIOS ? '&' : '?';
-        const smsUri = `sms:${phoneNumber}${separator}body=${encodeURIComponent(customMessage)}`;
+        // 移动端：显示预览确认
+        setSmsPreviewData({
+            phone: phoneNumber,
+            message: customMessage,
+            hasAmpersand: hasAmpersand
+        });
+        setShowSmsPreview(true);
         
-        // 打开系统短信应用
-        window.location.href = smsUri;
+    }, [phoneNumber, customMessage]);
+
+    // 🆕 确认发送短信（多重策略）
+    const handleConfirmSendSms = useCallback(async (strategy = 'auto') => {
+        if (!smsPreviewData) return;
         
-        // 延迟提示
-        setTimeout(() => {
-            alert('✅ 已打开系统短信应用\n\n请在短信应用中检查内容，然后点击"发送"按钮完成发送。\n\n💡 短信费用将从您的手机话费中扣除（约0.1元/条）。');
+        const { phone, message, hasAmpersand } = smsPreviewData;
+        
+        // 策略1: 智能兜底 - 先复制再跳转
+        if (strategy === 'auto' && hasAmpersand) {
+            const copied = await SMS_UTILS.copyToClipboard(message);
+            
+            if (copied) {
+                alert(`✅ 检测到链接包含特殊字符，已自动复制完整内容到剪贴板！\n\n即将打开短信应用，如果内容不完整，请从剪贴板粘贴。\n\n📋 已复制内容预览：\n${SMS_UTILS.generatePreview(message)}`);
+            }
+        }
+        
+        // 策略2: 尝试打开短信应用
+        try {
+            const smsUri = SMS_UTILS.buildSmsUri(phone, message, false);
+            window.location.href = smsUri;
+            
+            // 延迟关闭和提示
+            setTimeout(() => {
+                let tipMessage = '✅ 已打开系统短信应用\n\n';
+                
+                if (hasAmpersand) {
+                    tipMessage += `⚠️ 重要提示：\n您的链接包含 "&" 符号，部分设备可能会截断。\n\n请务必检查短信中的链接是否完整：\n应包含 "category=xxx&name=xxx"\n\n如果被截断，请点击【从剪贴板粘贴】按钮手动粘贴完整内容。\n\n`;
+                }
+                
+                tipMessage += '💡 短信费用将从您的手机话费中扣除（约0.1元/条）。';
+                
+                alert(tipMessage);
+                setShowSmsPreview(false);
+                setSmsModalOpen(false);
+                setPhoneNumber('');
+                setSmsTarget(null);
+                setCustomMessage('');
+                setSmsPreviewData(null);
+            }, 1000);
+            
+        } catch (error) {
+            console.error('打开短信应用失败:', error);
+            alert(`❌ 无法打开短信应用\n\n内容已复制到剪贴板，请手动打开短信应用粘贴发送。`);
+            await SMS_UTILS.copyToClipboard(message);
+        }
+        
+    }, [smsPreviewData]);
+
+    // 🆕 仅复制不跳转
+    const handleCopyOnly = useCallback(async () => {
+        if (!smsPreviewData) return;
+        
+        const { message } = smsPreviewData;
+        const copied = await SMS_UTILS.copyToClipboard(message);
+        
+        if (copied) {
+            alert(`✅ 完整短信内容已复制到剪贴板！\n\n请手动打开短信应用，选择收件人后粘贴发送。\n\n📋 内容预览：\n${SMS_UTILS.generatePreview(message)}`);
+            setShowSmsPreview(false);
             setSmsModalOpen(false);
             setPhoneNumber('');
             setSmsTarget(null);
             setCustomMessage('');
-        }, 800);
+            setSmsPreviewData(null);
+        } else {
+            alert('❌ 复制失败，请手动复制以下内容：\n\n' + message);
+        }
         
-    }, [phoneNumber, customMessage]);
+    }, [smsPreviewData]);
 
-    // 🆕 批量发送短信（逐条打开系统短信）
-    const handleBatchSendSms = useCallback(() => {
+    // 🆕 批量发送短信（健壮版本）
+    const handleBatchSendSms = useCallback(async () => {
         if (!batchPhones.trim()) {
             alert('请输入至少一个手机号！');
             return;
@@ -786,36 +914,39 @@ function AdminDashboard() {
             return `【RSV视频】${video.title}\n链接: ${fullLink}\n有效期: ${expiry}${video.remarks ? `\n备注: ${video.remarks}` : ''}`;
         }).join('\n\n━━━━━━━━━━━━━━\n\n');
         
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isMobileDevice = SMS_UTILS.isMobileDevice();
         
+        // 桌面端：复制全部内容
         if (!isMobileDevice) {
-            // 桌面端：复制全部内容
-            const allContent = phones.map(phone => `发送到: ${phone}\n${messages}`).join('\n\n═══════════════════\n\n');
-            navigator.clipboard.writeText(allContent)
-                .then(() => {
-                    alert(`⚠️ 检测到您在桌面设备上操作\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n内容已复制到剪贴板，请在手机上手动发送。\n\n目标号码：\n${phones.join('\n')}`);
-                })
-                .catch(() => {
-                    alert(`⚠️ 检测到您在桌面设备上操作\n\n将向以下 ${phones.length} 个号码发送信息：\n${phones.join('\n')}\n\n请在手机上手动操作。`);
-                });
+            const allContent = phones.map(phone => `📱 发送到: ${phone}\n${messages}`).join('\n\n═══════════════════\n\n');
+            const copied = await SMS_UTILS.copyToClipboard(allContent);
+            
+            if (copied) {
+                alert(`✅ 批量内容已复制到剪贴板！\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n请在手机上手动发送。\n\n目标号码：\n${phones.join('\n')}`);
+            } else {
+                alert(`⚠️ 将向以下 ${phones.length} 个号码发送信息：\n${phones.join('\n')}\n\n请在手机上手动操作。`);
+            }
             setBatchSmsModalOpen(false);
             setBatchPhones('');
             return;
         }
         
-        // 移动端：警告用户需要逐条发送
-        const confirmMsg = `⚠️ 批量发送说明\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n由于浏览器限制，系统会逐个打开短信应用，每次需要您手动点击"发送"。\n\n预计操作 ${phones.length} 次\n\n确认继续吗？`;
+        // 移动端：先复制完整内容作为兜底
+        await SMS_UTILS.copyToClipboard(messages);
+        
+        // 警告用户需要逐条发送
+        const confirmMsg = `⚠️ 批量发送说明\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n✅ 完整内容已复制到剪贴板作为备份\n\n📱 系统会逐个打开短信应用，每次需要您手动点击"发送"。\n\n⚠️ 如果短信内容不完整，请从剪贴板粘贴\n\n预计操作 ${phones.length} 次\n\n确认继续吗？`;
         
         if (!window.confirm(confirmMsg)) {
             return;
         }
         
-        // 逐条发送（实际上是逐条打开短信应用）
+        // 逐条发送
         let currentIndex = 0;
         
         const sendNext = () => {
             if (currentIndex >= phones.length) {
-                alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n请在短信应用中逐条发送。`);
+                alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n💡 提示：完整内容仍在剪贴板中，可随时粘贴使用。`);
                 setBatchSmsModalOpen(false);
                 setBatchPhones('');
                 setSelectedVideoIds([]);
@@ -823,26 +954,29 @@ function AdminDashboard() {
             }
             
             const phone = phones[currentIndex];
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const separator = isIOS ? '&' : '?';
-            const smsUri = `sms:${phone}${separator}body=${encodeURIComponent(messages)}`;
+            const smsUri = SMS_UTILS.buildSmsUri(phone, messages, false);
             
-            window.location.href = smsUri;
+            try {
+                window.location.href = smsUri;
+            } catch (error) {
+                console.error('打开短信应用失败:', error);
+            }
             
             currentIndex++;
             
             if (currentIndex < phones.length) {
                 setTimeout(() => {
-                    if (window.confirm(`已打开第 ${currentIndex}/${phones.length} 个短信\n\n发送到: ${phones[currentIndex - 1]}\n\n点击确定继续准备下一条短信`)) {
+                    const continueMsg = `已准备第 ${currentIndex}/${phones.length} 条短信\n\n发送到: ${phones[currentIndex - 1]}\n\n💡 如内容不完整，请从剪贴板粘贴\n\n点击确定继续准备下一条`;
+                    if (window.confirm(continueMsg)) {
                         sendNext();
                     } else {
-                        alert(`已取消批量发送。\n\n已准备 ${currentIndex} 条短信，剩余 ${phones.length - currentIndex} 条未处理。`);
+                        alert(`已取消批量发送。\n\n已准备 ${currentIndex} 条短信，剩余 ${phones.length - currentIndex} 条未处理。\n\n💡 完整内容仍在剪贴板中。`);
                         setBatchSmsModalOpen(false);
                     }
                 }, 1500);
             } else {
                 setTimeout(() => {
-                    alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n请在短信应用中逐条发送。`);
+                    alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n请在短信应用中逐条检查并发送。`);
                     setBatchSmsModalOpen(false);
                     setBatchPhones('');
                     setSelectedVideoIds([]);
@@ -1074,11 +1208,12 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
         );
     };
 
-    // 🆕 单条发送短信模态框（系统短信版本）
+    // 🆕 单条发送短信模态框（增强版）
     const renderSmsModal = () => {
         if (!smsModalOpen || !smsTarget) return null;
         
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isMobileDevice = SMS_UTILS.isMobileDevice();
+        const hasAmpersand = SMS_UTILS.hasAmpersand(customMessage);
         
         return (
             <div style={styles.modalOverlay} onClick={() => setSmsModalOpen(false)}>
@@ -1102,7 +1237,22 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                         </div>
                     )}
                     
-                    {isMobileDevice && (
+                    {isMobileDevice && hasAmpersand && (
+                        <div style={{
+                            backgroundColor: '#ffebee',
+                            border: '1px solid #f44336',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            color: '#c62828',
+                            fontSize: '14px'
+                        }}>
+                            ⚠️ 检测到链接包含 "&" 符号，部分设备可能会截断！<br/>
+                            💡 我们会自动复制完整内容到剪贴板作为备份。
+                        </div>
+                    )}
+                    
+                    {isMobileDevice && !hasAmpersand && (
                         <div style={{
                             backgroundColor: '#e3f2fd',
                             border: '1px solid #2196f3',
@@ -1149,6 +1299,7 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                         />
                         <p style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
                             💡 已输入 {customMessage.length} 字符 | 约 {Math.ceil(customMessage.length / 70)} 条短信
+                            {hasAmpersand && <span style={{ color: '#f44336', fontWeight: 'bold' }}> | ⚠️ 包含特殊字符</span>}
                         </p>
                     </div>
                     
@@ -1182,12 +1333,116 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
         );
     };
 
+    // 🆕 短信预览确认模态框
+    const renderSmsPreviewModal = () => {
+        if (!showSmsPreview || !smsPreviewData) return null;
+        
+        const { phone, message, hasAmpersand } = smsPreviewData;
+        
+        return (
+            <div style={styles.modalOverlay} onClick={() => setShowSmsPreview(false)}>
+                <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                    <button style={styles.modalCloseButton} onClick={() => setShowSmsPreview(false)}>&times;</button>
+                    <h3 style={{ ...styles.formTitle, borderBottom: '2px solid #ff9800' }}>
+                        📋 发送前预览确认
+                    </h3>
+                    
+                    <div style={{
+                        backgroundColor: '#fff3cd',
+                        border: '1px solid #ffc107',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        marginBottom: '20px'
+                    }}>
+                        <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#856404' }}>
+                            📱 收件人: {phone}
+                        </p>
+                        <p style={{ margin: '0', fontSize: '13px', color: '#856404' }}>
+                            {hasAmpersand ? '⚠️ 检测到链接包含特殊字符，可能被截断' : '✅ 内容格式正常'}
+                        </p>
+                    </div>
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333' }}>
+                            📝 短信内容预览：
+                        </label>
+                        <div style={{
+                            backgroundColor: '#f8f9fa',
+                            border: '1px solid #dee2e6',
+                            borderRadius: '8px',
+                            padding: '15px',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            fontFamily: 'monospace',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all'
+                        }}>
+                            {message}
+                        </div>
+                    </div>
+                    
+                    {hasAmpersand && (
+                        <div style={{
+                            backgroundColor: '#ffebee',
+                            border: '1px solid #f44336',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            fontSize: '13px',
+                            color: '#c62828'
+                        }}>
+                            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>⚠️ 重要提示：</p>
+                            <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                                <li>完整内容已自动复制到剪贴板</li>
+                                <li>打开短信应用后，如果内容被截断，请从剪贴板粘贴</li>
+                                <li>请确保链接包含完整的 "category=xxx&name=xxx" 参数</li>
+                            </ul>
+                        </div>
+                    )}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+                        <button
+                            onClick={() => handleConfirmSendSms('auto')}
+                            style={{ 
+                                ...styles.buttonBase, 
+                                ...styles.buttonSuccess,
+                                width: '100%'
+                            }}
+                        >
+                            ✅ 确认发送（{hasAmpersand ? '已备份到剪贴板' : '直接跳转'}）
+                        </button>
+                        
+                        <button
+                            onClick={handleCopyOnly}
+                            style={{ 
+                                ...styles.buttonBase, 
+                                backgroundColor: '#2196f3',
+                                width: '100%'
+                            }}
+                        >
+                            📋 仅复制内容（手动发送）
+                        </button>
+                        
+                        <button
+                            onClick={() => setShowSmsPreview(false)}
+                            style={{ ...styles.buttonBase, ...styles.buttonSecondary, width: '100%' }}
+                        >
+                            取消
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     // 🆕 批量发送短信模态框（系统短信版本）
     const renderBatchSmsModal = () => {
         if (!batchSmsModalOpen) return null;
         
         const selectedVideos = videos.filter(v => selectedVideoIds.includes(v.id));
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isMobileDevice = SMS_UTILS.isMobileDevice();
         
         return (
             <div style={styles.modalOverlay} onClick={() => setBatchSmsModalOpen(false)}>
@@ -1221,7 +1476,8 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                             color: '#c62828',
                             fontSize: '14px'
                         }}>
-                            ⚠️ 由于浏览器限制，系统会逐个打开短信应用，每次需要您手动点击"发送"按钮。
+                            ⚠️ 由于浏览器限制，系统会逐个打开短信应用，每次需要您手动点击"发送"按钮。<br/>
+                            💡 完整内容会自动复制到剪贴板作为备份。
                         </div>
                     )}
                     
@@ -1631,6 +1887,7 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
             {renderBatchModal()}
             {renderEditModal()}
             {renderSmsModal()}
+            {renderSmsPreviewModal()}
             {renderBatchSmsModal()}
             {renderComplianceNotice()}
         </div>
