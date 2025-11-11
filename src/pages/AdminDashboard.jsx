@@ -6,8 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 // 核心配置与常量
 // -------------------------------------------------------------------------
 const BASE_PATH = '';
-// 【已移除】const isReadOnlyMode = false; 
-// 改为在组件内动态判断
 const CLOUDFLARE_VIDEO_LIST_URL = 'https://rsa.zyhorg.cn/video_list.json';
 const CATEGORY_MAP = {
     "第1频道": "bsjkb",
@@ -144,23 +142,21 @@ const styles = {
         fontWeight: 600,
         fontSize: '28px',
     },
-// === Logo 样式 ===
-logoWrapper: {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '15px', // Logo 和标题之间的间距
-},
-logo: {
-  height: '45px',       // 固定高度，保持比例
-  width: 'auto',        // 宽度自适应
-  objectFit: 'contain', // 防止变形
-  flexShrink: 0,        // 防止在小屏被压缩
-},
+    logoWrapper: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+    },
+    logo: {
+        height: '45px',
+        width: 'auto',
+        objectFit: 'contain',
+        flexShrink: 0,
+    },
     headerSubtitle: {
         fontSize: '16px',
         fontWeight: 'normal',
         color: '#6c757d',
-        // marginLeft: '10px',
     },
     card: (isReadOnly) => ({
         border: 'none',
@@ -294,6 +290,7 @@ logo: {
         marginTop: '10px',
         justifyContent: 'flex-start',
         width: '100%',
+        flexWrap: 'wrap',
     },
     modalOverlay: {
         position: 'fixed',
@@ -346,18 +343,14 @@ function AdminDashboard() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
 
-    // 【关键修改】动态权限状态
     const [isReadOnlyMode, setIsReadOnlyMode] = useState(true);
 
-    // 初始化权限状态
     useEffect(() => {
         const checkPermission = () => {
             const hasEdit = localStorage.getItem('hasEditPermission') === 'true';
             setIsReadOnlyMode(!hasEdit);
         };
         checkPermission();
-
-        // 可选：监听其他标签页的 storage 变化（多标签同步）
         window.addEventListener('storage', checkPermission);
         return () => window.removeEventListener('storage', checkPermission);
     }, []);
@@ -383,6 +376,14 @@ function AdminDashboard() {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [showComplianceNotice, setShowComplianceNotice] = useState(false);
     const [editingVideo, setEditingVideo] = useState(null);
+    
+    // 🆕 短信功能相关状态（系统短信版本）
+    const [smsModalOpen, setSmsModalOpen] = useState(false);
+    const [smsTarget, setSmsTarget] = useState(null);
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [customMessage, setCustomMessage] = useState('');
+    const [batchSmsModalOpen, setBatchSmsModalOpen] = useState(false);
+    const [batchPhones, setBatchPhones] = useState('');
 
     const filteredVideos = useMemo(() => {
         let result = videos;
@@ -415,17 +416,17 @@ function AdminDashboard() {
             setLoading(false);
         });
     }, []);
-    // 【新增】首次访问时显示合规提示
+
     useEffect(() => {
-    const hasSeenNotice = localStorage.getItem('complianceNoticeSeen');
-    if (!hasSeenNotice) {
-        setShowComplianceNotice(true);
-    }
+        const hasSeenNotice = localStorage.getItem('complianceNoticeSeen');
+        if (!hasSeenNotice) {
+            setShowComplianceNotice(true);
+        }
     }, []);
 
     const handleLogout = useCallback(() => {
         localStorage.removeItem('authToken');
-        localStorage.removeItem('hasEditPermission'); // 👈 清除权限
+        localStorage.removeItem('hasEditPermission');
         navigate('/admin', { replace: true });
     }, [navigate]);
 
@@ -546,7 +547,7 @@ function AdminDashboard() {
         await uploadJsonToR2(updatedVideos);
         resetForm();
         setCurrentPage(1);
-    }, [formData, videos, resetForm]);
+    }, [formData, videos, resetForm, isReadOnlyMode]);
 
     const handleDelete = useCallback(async (id) => {
         if (isReadOnlyMode) return;
@@ -557,7 +558,7 @@ function AdminDashboard() {
             alert('✅ 链接已删除！最新的数据列表文件到 Cloudflare R2。');
             setCurrentPage(1);
         }
-    }, [videos]);
+    }, [videos, isReadOnlyMode]);
 
     const handleBatchSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -580,7 +581,7 @@ function AdminDashboard() {
                 errors.push(`第 ${index + 1} 行数据格式错误 (至少需要 4 个字段)。`);
                 return;
             }
-            const [htmlName, category, title, videoUrl, expiryDateInput = ''] = parts;
+            const [htmlName, category, title, videoUrl, expiryDateInput = '', remarks = ''] = parts;
             if (!htmlName || !category || !title || !videoUrl) {
                 errors.push(`第 ${index + 1} 行有必填字段为空。`);
                 return;
@@ -603,6 +604,7 @@ function AdminDashboard() {
                 title,
                 videoUrl,
                 expiryDate: formattedExpiryDate,
+                remarks,
                 generatedLink,
             });
         });
@@ -618,7 +620,7 @@ function AdminDashboard() {
         resetForm();
         setCurrentPage(1);
         closeBatchModal();
-    }, [batchInput, videos, resetForm, closeBatchModal]);
+    }, [batchInput, videos, resetForm, closeBatchModal, isReadOnlyMode]);
 
     const handleCopy = useCallback((video) => {
         const fullLink = `${window.location.origin}${video.generatedLink}`;
@@ -654,7 +656,7 @@ function AdminDashboard() {
         过期时间: ${expiry}
         备注: ${remarks}`;
             })
-            .join('\n\n'); // 用两个换行分隔每条记录，更清晰
+            .join('\n\n');
         navigator.clipboard.writeText(copyText)
             .then(() => {
                 alert(`✅ 成功批量复制 ${selectedVideosData.length} 条链接！\n内容已复制到剪贴板，格式为：\n[视频标题]\n[完整链接]\n...`);
@@ -665,6 +667,192 @@ function AdminDashboard() {
                 alert('批量复制失败，请确保您在安全环境（HTTPS/localhost）下操作并授予了剪贴板权限。');
             });
     }, [selectedVideoIds, videos]);
+
+    // 🆕 打开单条发送模态框（系统短信版本）
+    const handleOpenSmsModal = useCallback((video) => {
+        setSmsTarget(video);
+        setPhoneNumber('');
+        const fullLink = `${window.location.origin}/player?category=${video.category}&name=${video.htmlName}`;
+        const expiry = video.expiryDate || '永久';
+        const defaultMsg = `【RSV视频】${video.title}\n链接: ${fullLink}\n有效期: ${expiry}${video.remarks ? `\n备注: ${video.remarks}` : ''}`;
+        setCustomMessage(defaultMsg);
+        setSmsModalOpen(true);
+    }, []);
+
+    // 🆕 打开批量发送模态框
+    const handleOpenBatchSmsModal = useCallback(() => {
+        if (selectedVideoIds.length === 0) {
+            alert('请先勾选要发送的视频！');
+            return;
+        }
+        setBatchPhones('');
+        setBatchSmsModalOpen(true);
+    }, [selectedVideoIds]);
+
+    // 🆕 单条发送短信（使用系统短信应用）
+    const handleSendSms = useCallback(() => {
+        if (!phoneNumber) {
+            alert('请输入手机号！');
+            return;
+        }
+        
+        const phoneRegex = /^1[3-9]\d{9}$/;
+        if (!phoneRegex.test(phoneNumber)) {
+            alert('请输入有效的11位手机号！');
+            return;
+        }
+        
+        if (!customMessage.trim()) {
+            alert('短信内容不能为空！');
+            return;
+        }
+        
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        if (!isMobileDevice) {
+            // 桌面端：复制到剪贴板
+            navigator.clipboard.writeText(customMessage)
+                .then(() => {
+                    alert(`⚠️ 检测到您在桌面设备上操作\n\n短信内容已复制到剪贴板！\n\n请在手机上打开短信应用，发送到 ${phoneNumber}，粘贴内容后手动发送。\n\n━━━━━━━━━━━━━━━━\n${customMessage}`);
+                })
+                .catch(() => {
+                    alert(`⚠️ 检测到您在桌面设备上操作\n\n请复制以下内容到手机短信应用发送到 ${phoneNumber}：\n\n━━━━━━━━━━━━━━━━\n${customMessage}`);
+                });
+            setSmsModalOpen(false);
+            setPhoneNumber('');
+            setSmsTarget(null);
+            setCustomMessage('');
+            return;
+        }
+        
+        // 移动端：使用 sms: URI 协议
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const separator = isIOS ? '&' : '?';
+        const smsUri = `sms:${phoneNumber}${separator}body=${encodeURIComponent(customMessage)}`;
+        
+        // 打开系统短信应用
+        window.location.href = smsUri;
+        
+        // 延迟提示
+        setTimeout(() => {
+            alert('✅ 已打开系统短信应用\n\n请在短信应用中检查内容，然后点击"发送"按钮完成发送。\n\n💡 短信费用将从您的手机话费中扣除（约0.1元/条）。');
+            setSmsModalOpen(false);
+            setPhoneNumber('');
+            setSmsTarget(null);
+            setCustomMessage('');
+        }, 800);
+        
+    }, [phoneNumber, customMessage]);
+
+    // 🆕 批量发送短信（逐条打开系统短信）
+    const handleBatchSendSms = useCallback(() => {
+        if (!batchPhones.trim()) {
+            alert('请输入至少一个手机号！');
+            return;
+        }
+        
+        if (selectedVideoIds.length === 0) {
+            alert('请先勾选要发送的视频！');
+            return;
+        }
+        
+        // 解析手机号
+        const phones = batchPhones
+            .split(/[,，\s\n]+/)
+            .map(p => p.trim())
+            .filter(p => p);
+        
+        const phoneRegex = /^1[3-9]\d{9}$/;
+        const invalidPhones = phones.filter(p => !phoneRegex.test(p));
+        
+        if (invalidPhones.length > 0) {
+            alert(`以下手机号格式错误：\n${invalidPhones.join('\n')}`);
+            return;
+        }
+        
+        if (phones.length === 0) {
+            alert('未检测到有效的手机号！');
+            return;
+        }
+        
+        // 获取选中的视频
+        const selectedVideos = videos.filter(v => selectedVideoIds.includes(v.id));
+        
+        // 构建消息内容
+        const baseUrl = window.location.origin;
+        const messages = selectedVideos.map(video => {
+            const fullLink = `${baseUrl}/player?category=${video.category}&name=${video.htmlName}`;
+            const expiry = video.expiryDate || '永久';
+            return `【RSV视频】${video.title}\n链接: ${fullLink}\n有效期: ${expiry}${video.remarks ? `\n备注: ${video.remarks}` : ''}`;
+        }).join('\n\n━━━━━━━━━━━━━━\n\n');
+        
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        if (!isMobileDevice) {
+            // 桌面端：复制全部内容
+            const allContent = phones.map(phone => `发送到: ${phone}\n${messages}`).join('\n\n═══════════════════\n\n');
+            navigator.clipboard.writeText(allContent)
+                .then(() => {
+                    alert(`⚠️ 检测到您在桌面设备上操作\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n内容已复制到剪贴板，请在手机上手动发送。\n\n目标号码：\n${phones.join('\n')}`);
+                })
+                .catch(() => {
+                    alert(`⚠️ 检测到您在桌面设备上操作\n\n将向以下 ${phones.length} 个号码发送信息：\n${phones.join('\n')}\n\n请在手机上手动操作。`);
+                });
+            setBatchSmsModalOpen(false);
+            setBatchPhones('');
+            return;
+        }
+        
+        // 移动端：警告用户需要逐条发送
+        const confirmMsg = `⚠️ 批量发送说明\n\n将向 ${phones.length} 个号码发送 ${selectedVideos.length} 条视频信息。\n\n由于浏览器限制，系统会逐个打开短信应用，每次需要您手动点击"发送"。\n\n预计操作 ${phones.length} 次\n\n确认继续吗？`;
+        
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
+        
+        // 逐条发送（实际上是逐条打开短信应用）
+        let currentIndex = 0;
+        
+        const sendNext = () => {
+            if (currentIndex >= phones.length) {
+                alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n请在短信应用中逐条发送。`);
+                setBatchSmsModalOpen(false);
+                setBatchPhones('');
+                setSelectedVideoIds([]);
+                return;
+            }
+            
+            const phone = phones[currentIndex];
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const separator = isIOS ? '&' : '?';
+            const smsUri = `sms:${phone}${separator}body=${encodeURIComponent(messages)}`;
+            
+            window.location.href = smsUri;
+            
+            currentIndex++;
+            
+            if (currentIndex < phones.length) {
+                setTimeout(() => {
+                    if (window.confirm(`已打开第 ${currentIndex}/${phones.length} 个短信\n\n发送到: ${phones[currentIndex - 1]}\n\n点击确定继续准备下一条短信`)) {
+                        sendNext();
+                    } else {
+                        alert(`已取消批量发送。\n\n已准备 ${currentIndex} 条短信，剩余 ${phones.length - currentIndex} 条未处理。`);
+                        setBatchSmsModalOpen(false);
+                    }
+                }, 1500);
+            } else {
+                setTimeout(() => {
+                    alert(`✅ 已完成所有 ${phones.length} 条短信的准备工作！\n\n请在短信应用中逐条发送。`);
+                    setBatchSmsModalOpen(false);
+                    setBatchPhones('');
+                    setSelectedVideoIds([]);
+                }, 1000);
+            }
+        };
+        
+        sendNext();
+        
+    }, [batchPhones, selectedVideoIds, videos]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -773,7 +961,7 @@ function AdminDashboard() {
                         <br />
                         HTML Name | 分类代码 | 视频标题 | 视频直链 | 页面有效过期时间 (可选) 例如2025-12-31T23:59 | 备注（可选）
                         <br />
-                        <b style={{ color: '#d32f2f' }}>⚠️ 视频标题请勿包含“医、健、康、百岁、奇方”等敏感词！</b>
+                        <b style={{ color: '#d32f2f' }}>⚠️ 视频标题请勿包含"医、健、康、百岁、奇方"等敏感词！</b>
                     </p>
                     <textarea 
                         name="batchInput" 
@@ -885,73 +1073,302 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
             </div>
         );
     };
-// 【新增】合规提示弹窗
-const renderComplianceNotice = () => {
-  if (!showComplianceNotice) return null;
 
-  const handleClose = () => {
-    localStorage.setItem('complianceNoticeSeen', 'true');
-    setShowComplianceNotice(false);
-  };
+    // 🆕 单条发送短信模态框（系统短信版本）
+    const renderSmsModal = () => {
+        if (!smsModalOpen || !smsTarget) return null;
+        
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        return (
+            <div style={styles.modalOverlay} onClick={() => setSmsModalOpen(false)}>
+                <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                    <button style={styles.modalCloseButton} onClick={() => setSmsModalOpen(false)}>&times;</button>
+                    <h3 style={{ ...styles.formTitle, borderBottom: '2px solid #28a745' }}>
+                        📱 发送视频短信（系统短信应用）
+                    </h3>
+                    
+                    {!isMobileDevice && (
+                        <div style={{
+                            backgroundColor: '#fff3cd',
+                            border: '1px solid #ffc107',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            color: '#856404',
+                            fontSize: '14px'
+                        }}>
+                            ⚠️ 检测到您在桌面设备上操作，点击后将复制内容到剪贴板，请在手机上手动发送短信。
+                        </div>
+                    )}
+                    
+                    {isMobileDevice && (
+                        <div style={{
+                            backgroundColor: '#e3f2fd',
+                            border: '1px solid #2196f3',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            color: '#1565c0',
+                            fontSize: '14px'
+                        }}>
+                            💡 点击"打开短信应用"后，将跳转到系统短信应用，内容已预填充，请手动点击"发送"完成。
+                        </div>
+                    )}
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333', fontSize: '15px' }}>
+                            📱 接收手机号 *
+                        </label>
+                        <input
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                            placeholder="请输入11位手机号"
+                            maxLength={11}
+                            style={styles.input}
+                            autoFocus
+                        />
+                    </div>
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333', fontSize: '15px' }}>
+                            ✏️ 短信内容（可编辑）*
+                        </label>
+                        <textarea
+                            value={customMessage}
+                            onChange={(e) => setCustomMessage(e.target.value)}
+                            placeholder="编辑短信内容..."
+                            style={{ 
+                                ...styles.input, 
+                                minHeight: '150px',
+                                fontFamily: 'monospace',
+                                fontSize: '13px',
+                                lineHeight: '1.6'
+                            }}
+                        />
+                        <p style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
+                            💡 已输入 {customMessage.length} 字符 | 约 {Math.ceil(customMessage.length / 70)} 条短信
+                        </p>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                        <button
+                            onClick={handleSendSms}
+                            disabled={phoneNumber.length !== 11 || !customMessage.trim()}
+                            style={{ 
+                                ...styles.buttonBase, 
+                                ...styles.buttonSuccess, 
+                                flex: 1,
+                                opacity: (phoneNumber.length !== 11 || !customMessage.trim()) ? 0.5 : 1,
+                                cursor: (phoneNumber.length !== 11 || !customMessage.trim()) ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {isMobileDevice ? '📲 打开短信应用' : '📋 复制到剪贴板'}
+                        </button>
+                        <button
+                            onClick={() => setSmsModalOpen(false)}
+                            style={{ ...styles.buttonBase, ...styles.buttonSecondary, flex: 1 }}
+                        >
+                            取消
+                        </button>
+                    </div>
+                    
+                    <p style={{ fontSize: '12px', color: '#28a745', marginTop: '15px', textAlign: 'center' }}>
+                        💰 费用: 约 0.1元/条 · 从手机话费扣除
+                    </p>
+                </div>
+            </div>
+        );
+    };
 
-  return (
-    <div style={styles.modalOverlay} onClick={handleClose}>
-      <div style={{ ...styles.modalContent, maxWidth: '700px' }} onClick={(e) => e.stopPropagation()}>
-        <button style={styles.modalCloseButton} onClick={handleClose}>&times;</button>
-        <h3 style={{ color: '#d32f2f', fontWeight: 700, fontSize: '22px', marginBottom: '16px', textAlign: 'center' }}>
-          ⚠️ 重要合规整改通知 ⚠️
-        </h3>
-        <p style={{ fontSize: '15px', lineHeight: 1.6, color: '#333', marginBottom: '20px' }}>
-          为严格遵守《<b>微信外部链接内容管理规范</b>》，避免因高风险关键词导致<b>域名被封禁</b>，系统已对视频分类名称进行如下整改：
-        </p>
-        <div style={{ backgroundColor: '#fff8e1', border: '1px solid #ffd54f', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
-          <p style={{ margin: '0 0 12px 0', fontWeight: 600, color: '#e65100' }}>🔴 以下敏感词已全部删除：</p>
-          <p style={{ margin: 0, fontSize: '14px', color: '#d32f2f' }}>
-            百岁健康班、大道仁医、防危度健、国医伴你行、美食每刻、奇酒奇方、羊奶粉
-          </p>
-        </div>
-        <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: '#1976d2' }}>✅ 新旧分类对应关系：</p>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-          <thead>
-            <tr>
-              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>原分类名称</th>
-              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>新分类名称</th>
-              <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>对应代码</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>百岁健康班</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第1频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>bsjkb</td></tr>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>大道仁医</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第2频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>ddry</td></tr>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>防危度健</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第3频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>fwdj</td></tr>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>国医伴你行</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第4频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>gybnx</td></tr>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>美食每刻</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第5频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>msmk</td></tr>
-            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>奇酒奇方</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第6频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>qjqf</td></tr>
-          </tbody>
-        </table>
-        <p style={{ fontSize: '14px', color: '#555', marginTop: '16px', fontStyle: 'italic' }}>
-          💡 此调整仅影响前端显示名称，<b>URL 路由参数和数据库结构保持不变</b>，不影响现有链接访问。
-        </p>
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <button
-            onClick={handleClose}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: '#1976d2',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '16px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            我已知晓
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+    // 🆕 批量发送短信模态框（系统短信版本）
+    const renderBatchSmsModal = () => {
+        if (!batchSmsModalOpen) return null;
+        
+        const selectedVideos = videos.filter(v => selectedVideoIds.includes(v.id));
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        return (
+            <div style={styles.modalOverlay} onClick={() => setBatchSmsModalOpen(false)}>
+                <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                    <button style={styles.modalCloseButton} onClick={() => setBatchSmsModalOpen(false)}>&times;</button>
+                    <h3 style={{ ...styles.formTitle, borderBottom: '2px solid #ff6b6b' }}>
+                        📮 批量发送短信（系统短信）
+                    </h3>
+                    
+                    {!isMobileDevice && (
+                        <div style={{
+                            backgroundColor: '#fff3cd',
+                            border: '1px solid #ffc107',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            color: '#856404',
+                            fontSize: '14px'
+                        }}>
+                            ⚠️ 检测到您在桌面设备上操作，点击后将复制所有内容到剪贴板，请在手机上手动发送。
+                        </div>
+                    )}
+                    
+                    {isMobileDevice && (
+                        <div style={{
+                            backgroundColor: '#ffebee',
+                            border: '1px solid #f44336',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '15px',
+                            color: '#c62828',
+                            fontSize: '14px'
+                        }}>
+                            ⚠️ 由于浏览器限制，系统会逐个打开短信应用，每次需要您手动点击"发送"按钮。
+                        </div>
+                    )}
+                    
+                    <div style={{
+                        backgroundColor: '#e3f2fd',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        marginBottom: '15px',
+                        fontSize: '14px'
+                    }}>
+                        已选择 <strong>{selectedVideos.length}</strong> 条视频，将发送到指定的所有手机号
+                    </div>
+                    
+                    <div style={{
+                        backgroundColor: '#f8f9fa',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        marginBottom: '15px',
+                        maxHeight: '120px',
+                        overflowY: 'auto',
+                        fontSize: '13px'
+                    }}>
+                        <strong>选中的视频：</strong>
+                        <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                            {selectedVideos.map(v => (
+                                <li key={v.id}>{v.title}</li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333', fontSize: '15px' }}>
+                            📱 接收手机号列表 * （每行一个或用逗号分隔）
+                        </label>
+                        <textarea
+                            value={batchPhones}
+                            onChange={(e) => setBatchPhones(e.target.value)}
+                            placeholder={`示例：\n13800138000\n13900139000\n或: 13800138000, 13900139000`}
+                            style={{ 
+                                ...styles.input, 
+                                minHeight: '120px',
+                                fontFamily: 'monospace'
+                            }}
+                            autoFocus
+                        />
+                        <p style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
+                            💡 已输入 {batchPhones.split(/[,，\s\n]+/).filter(p => p.trim()).length} 个号码
+                        </p>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                        <button
+                            onClick={handleBatchSendSms}
+                            disabled={!batchPhones.trim() || selectedVideos.length === 0}
+                            style={{ 
+                                ...styles.buttonBase, 
+                                backgroundColor: '#ff6b6b',
+                                flex: 1,
+                                opacity: (!batchPhones.trim() || selectedVideos.length === 0) ? 0.5 : 1,
+                                cursor: (!batchPhones.trim() || selectedVideos.length === 0) ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {isMobileDevice ? '📲 开始批量发送' : '📋 复制全部内容'}
+                        </button>
+                        <button
+                            onClick={() => setBatchSmsModalOpen(false)}
+                            style={{ ...styles.buttonBase, ...styles.buttonSecondary, flex: 1 }}
+                        >
+                            取消
+                        </button>
+                    </div>
+                    
+                    <p style={{ fontSize: '12px', color: '#ff6b6b', marginTop: '15px', textAlign: 'center' }}>
+                        💰 预计费用: ￥{(batchPhones.split(/[,，\s\n]+/).filter(p => p.trim()).length * 0.1).toFixed(2)} · 从手机话费扣除
+                    </p>
+                </div>
+            </div>
+        );
+    };
+
+    const renderComplianceNotice = () => {
+        if (!showComplianceNotice) return null;
+
+        const handleClose = () => {
+            localStorage.setItem('complianceNoticeSeen', 'true');
+            setShowComplianceNotice(false);
+        };
+
+        return (
+            <div style={styles.modalOverlay} onClick={handleClose}>
+                <div style={{ ...styles.modalContent, maxWidth: '700px' }} onClick={(e) => e.stopPropagation()}>
+                    <button style={styles.modalCloseButton} onClick={handleClose}>&times;</button>
+                    <h3 style={{ color: '#d32f2f', fontWeight: 700, fontSize: '22px', marginBottom: '16px', textAlign: 'center' }}>
+                        ⚠️ 重要合规整改通知 ⚠️
+                    </h3>
+                    <p style={{ fontSize: '15px', lineHeight: 1.6, color: '#333', marginBottom: '20px' }}>
+                        为严格遵守《<b>微信外部链接内容管理规范</b>》，避免因高风险关键词导致<b>域名被封禁</b>，系统已对视频分类名称进行如下整改：
+                    </p>
+                    <div style={{ backgroundColor: '#fff8e1', border: '1px solid #ffd54f', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+                        <p style={{ margin: '0 0 12px 0', fontWeight: 600, color: '#e65100' }}>🔴 以下敏感词已全部删除：</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#d32f2f' }}>
+                            百岁健康班、大道仁医、防危度健、国医伴你行、美食每刻、奇酒奇方、羊奶粉
+                        </p>
+                    </div>
+                    <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: '#1976d2' }}>✅ 新旧分类对应关系：</p>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>原分类名称</th>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>新分类名称</th>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', backgroundColor: '#e3f2fd' }}>对应代码</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>百岁健康班</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第1频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>bsjkb</td></tr>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>大道仁医</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第2频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>ddry</td></tr>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>防危度健</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第3频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>fwdj</td></tr>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>国医伴你行</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第4频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>gybnx</td></tr>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>美食每刻</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第5频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>msmk</td></tr>
+                            <tr><td style={{ border: '1px solid #ddd', padding: '8px' }}>奇酒奇方</td><td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>第6频道</td><td style={{ border: '1px solid #ddd', padding: '8px' }}>qjqf</td></tr>
+                        </tbody>
+                    </table>
+                    <p style={{ fontSize: '14px', color: '#555', marginTop: '16px', fontStyle: 'italic' }}>
+                        💡 此调整仅影响前端显示名称，<b>URL 路由参数和数据库结构保持不变</b>，不影响现有链接访问。
+                    </p>
+                    <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                        <button
+                            onClick={handleClose}
+                            style={{
+                                padding: '10px 24px',
+                                backgroundColor: '#1976d2',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            我已知晓
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderPagination = () => {
         if (totalPages <= 1 && filteredVideos.length === 0) return null;
         const maxButtons = isMobile ? 3 : 5;
@@ -1038,14 +1455,15 @@ const renderComplianceNotice = () => {
                             </span>
                         </div>
                         <div style={styles.mobileMetaItem}>
-                        <span><b>备注:</b></span>
-                        <span>{video.remarks || '无'}</span>
+                            <span><b>备注:</b></span>
+                            <span>{video.remarks || '无'}</span>
                         </div>
                         <div style={styles.mobileActions}>
                             {!isReadOnlyMode && (
                                 <>
                                     <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
                                     <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+                                    <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
                                 </>
                             )}
                             <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制链接</button>
@@ -1104,19 +1522,20 @@ const renderComplianceNotice = () => {
                                     {video.expiryDate || '永久'}
                                 </td>
                                 <td style={styles.tableCell}>
-                                {video.remarks || '-'}
+                                    {video.remarks || '-'}
                                 </td>
                                 <td style={styles.tableCell}>
-                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                                         {!isReadOnlyMode && (
                                             <>
                                                 <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
                                                 <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+                                                <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
                                             </>
                                         )}
                                         <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制</button>
                                     </div>
-                              </td>
+                                </td>
                             </tr>
                         );
                     })}
@@ -1146,17 +1565,31 @@ const renderComplianceNotice = () => {
                     style={{ ...styles.input, flex: '1' }}
                 />
                 {selectedVideoIds.length > 0 && (
-                    <button 
-                        onClick={handleBatchCopy} 
-                        style={{ 
-                            ...styles.buttonBase, 
-                            ...styles.buttonPrimary,
-                            flex: isMobile ? 'none' : '200px',
-                            backgroundColor: '#20c997',
-                        }}
-                    >
-                        批量复制 ({selectedVideoIds.length} 条)
-                    </button>
+                    <>
+                        <button 
+                            onClick={handleBatchCopy} 
+                            style={{ 
+                                ...styles.buttonBase, 
+                                ...styles.buttonPrimary,
+                                flex: isMobile ? 'none' : '200px',
+                                backgroundColor: '#20c997',
+                            }}
+                        >
+                            批量复制 ({selectedVideoIds.length} 条)
+                        </button>
+                        {!isReadOnlyMode && (
+                            <button 
+                                onClick={handleOpenBatchSmsModal} 
+                                style={{ 
+                                    ...styles.buttonBase,
+                                    flex: isMobile ? 'none' : '200px',
+                                    backgroundColor: '#ff6b6b',
+                                }}
+                            >
+                                📮 批量发短信 ({selectedVideoIds.length})
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
             {paginatedVideos.length > 0 ? (isMobile ? renderMobileList() : renderDesktopTable()) : (
@@ -1169,37 +1602,38 @@ const renderComplianceNotice = () => {
     );
 
     return (
-<div style={styles.pageContainer}>
-  <div style={styles.header}>
-    {/* 👇 Logo 容器 */}
-    <div style={styles.logoWrapper}>
-<a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-  <img src="/rsvideo.svg" alt="RSV Logo" style={styles.logo} />
-</a>
-      <h1 style={styles.headerTitle}>
-        RSV 管理后台 <br /> <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
-      </h1>
-    </div>
+        <div style={styles.pageContainer}>
+            <div style={styles.header}>
+                <div style={styles.logoWrapper}>
+                    <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                        <img src="/rsvideo.svg" alt="RSV Logo" style={styles.logo} />
+                    </a>
+                    <h1 style={styles.headerTitle}>
+                        RSV 管理后台 <br /> <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
+                    </h1>
+                </div>
 
-    <button onClick={handleLogout} 
-      style={{ ...styles.buttonBase, ...styles.buttonDanger }}>
-      退出登录
-    </button>
-  </div>
-  {renderForm()}
-  {renderList()}
-  <div style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)' }}>
-    <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
-    <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
-      {Object.entries(CATEGORY_MAP).map(([label, value]) => (
-        <li key={value}>{label} 对应代码: <b>{value}</b></li>
-      ))}
-    </ul>
-  </div>
-  {renderBatchModal()}
-  {renderEditModal()}
-  {renderComplianceNotice()}
-</div>
+                <button onClick={handleLogout} 
+                    style={{ ...styles.buttonBase, ...styles.buttonDanger }}>
+                    退出登录
+                </button>
+            </div>
+            {renderForm()}
+            {renderList()}
+            <div style={{ marginTop: '50px', padding: '15px', borderLeft: '3px solid #007bff', backgroundColor: '#e9f7ff', color: '#333', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)' }}>
+                <b>分类代码列表: </b>请确保新增/编辑时使用以下编号：
+                <ul style={{ paddingLeft: '20px', marginTop: '5px', fontSize: '14px' }}>
+                    {Object.entries(CATEGORY_MAP).map(([label, value]) => (
+                        <li key={value}>{label} 对应代码: <b>{value}</b></li>
+                    ))}
+                </ul>
+            </div>
+            {renderBatchModal()}
+            {renderEditModal()}
+            {renderSmsModal()}
+            {renderBatchSmsModal()}
+            {renderComplianceNotice()}
+        </div>
     );
 }
 
