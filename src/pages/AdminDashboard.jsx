@@ -384,16 +384,20 @@ function AdminDashboard() {
 
     const [isReadOnlyMode, setIsReadOnlyMode] = useState(true);
 
-    useEffect(() => {
-        const checkPermission = () => {
-            const hasEdit = localStorage.getItem('hasEditPermission') === 'true';
-            setIsReadOnlyMode(!hasEdit);
-        };
-        checkPermission();
-        window.addEventListener('storage', checkPermission);
-        return () => window.removeEventListener('storage', checkPermission);
-    }, []);
+// 🆕 权限状态
+const [permissionLevel, setPermissionLevel] = useState('readonly'); // 'full' | 'share' | 'readonly'
 
+useEffect(() => {
+    const checkPermission = () => {
+        const level = localStorage.getItem('permissionLevel') || 'readonly';
+        setPermissionLevel(level);
+        // 兼容旧的只读模式判断
+        setIsReadOnlyMode(level !== 'full');
+    };
+    checkPermission();
+    window.addEventListener('storage', checkPermission);
+    return () => window.removeEventListener('storage', checkPermission);
+}, []);
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -461,11 +465,12 @@ function AdminDashboard() {
         }
     }, []);
 
-    const handleLogout = useCallback(() => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('hasEditPermission');
-        navigate('/admin', { replace: true });
-    }, [navigate]);
+const handleLogout = useCallback(() => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('hasEditPermission');
+    localStorage.removeItem('permissionLevel'); // 🆕 清除权限级别
+    navigate('/admin', { replace: true });
+}, [navigate]);
 
     const resetForm = useCallback(() => {
         setFormData({
@@ -899,27 +904,32 @@ function AdminDashboard() {
                     style={styles.input} 
                 />
             </div>
-            {!isReadOnlyMode && (
-                <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button type="submit" style={{ ...styles.buttonBase, ...(formData.id ? styles.buttonWarning : styles.buttonSuccess) }}>
-                        {formData.id ? '更新并自动上传列表文件 (JSON)' : '新增并自动上传列表文件 (JSON)'}
-                    </button>
-                    <button 
-                        type="button" 
-                        onClick={openBatchModal} 
-                        style={{ ...styles.buttonBase, backgroundColor: '#20c997' }}
-                    >
-                        批量新增/导入 (Batch Import)
-                    </button>
-                    {formData.id && (
-                        <button type="button" onClick={resetForm} style={{ ...styles.buttonBase, ...styles.buttonSecondary }}>
-                            取消编辑
-                        </button>
-                    )}
-                </div>
-            )}
-            {isReadOnlyMode && 
-            <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>当前为只读模式，无法编辑或新增。</p>}
+{permissionLevel === 'full' && (
+    <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <button type="submit" style={{ ...styles.buttonBase, ...(formData.id ? styles.buttonWarning : styles.buttonSuccess) }}>
+            {formData.id ? '更新并自动上传列表文件 (JSON)' : '新增并自动上传列表文件 (JSON)'}
+        </button>
+        <button 
+            type="button" 
+            onClick={openBatchModal} 
+            style={{ ...styles.buttonBase, backgroundColor: '#20c997' }}
+        >
+            批量新增/导入 (Batch Import)
+        </button>
+        {formData.id && (
+            <button type="button" onClick={resetForm} style={{ ...styles.buttonBase, ...styles.buttonSecondary }}>
+                取消编辑
+            </button>
+        )}
+    </div>
+)}
+{isReadOnlyMode && 
+    <p style={{ color: '#dc3545', marginTop: '10px', fontWeight: 'bold' }}>
+        {permissionLevel === 'share' 
+            ? '当前为分享账号，只能查看、复制链接和发送短信。' 
+            : '当前为只读模式，无法编辑或新增。'}
+    </p>
+}
         </form>
     );
 
@@ -1417,16 +1427,18 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                             <span><b>备注:</b></span>
                             <span>{video.remarks || '无'}</span>
                         </div>
-                        <div style={styles.mobileActions}>
-                            {!isReadOnlyMode && (
-                                <>
-                                    <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
-                                    <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
-                                    <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
-                                </>
-                            )}
-                            <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制链接</button>
-                        </div>
+<div style={styles.mobileActions}>
+    {permissionLevel === 'full' && (
+        <>
+            <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
+            <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+        </>
+    )}
+    {(permissionLevel === 'full' || permissionLevel === 'share') && (
+        <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
+    )}
+    <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制链接</button>
+</div>
                     </div>
                 );
             })}
@@ -1483,18 +1495,20 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                                 <td style={styles.tableCell}>
                                     {video.remarks || '-'}
                                 </td>
-                                <td style={styles.tableCell}>
-                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                                        {!isReadOnlyMode && (
-                                            <>
-                                                <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
-                                                <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
-                                                <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
-                                            </>
-                                        )}
-                                        <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制</button>
-                                    </div>
-                                </td>
+<td style={styles.tableCell}>
+    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        {permissionLevel === 'full' && (
+            <>
+                <button onClick={() => handleEdit(video)} style={styles.buttonAction('#17a2b8')}>编辑</button>
+                <button onClick={() => handleDelete(video.id)} style={styles.buttonAction('#dc3545')}>删除</button>
+            </>
+        )}
+        {(permissionLevel === 'full' || permissionLevel === 'share') && (
+            <button onClick={() => handleOpenSmsModal(video)} style={styles.buttonAction('#28a745')}>发短信</button>
+        )}
+        <button onClick={() => handleCopy(video)} style={styles.buttonAction('#007bff')}>复制</button>
+    </div>
+</td>
                             </tr>
                         );
                     })}
@@ -1523,33 +1537,33 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                     onChange={handleSearchChange}
                     style={{ ...styles.input, flex: '1' }}
                 />
-                {selectedVideoIds.length > 0 && (
-                    <>
-                        <button 
-                            onClick={handleBatchCopy} 
-                            style={{ 
-                                ...styles.buttonBase, 
-                                ...styles.buttonPrimary,
-                                flex: isMobile ? 'none' : '200px',
-                                backgroundColor: '#20c997',
-                            }}
-                        >
-                            批量复制 ({selectedVideoIds.length} 条)
-                        </button>
-                        {!isReadOnlyMode && (
-                            <button 
-                                onClick={handleOpenBatchSmsModal} 
-                                style={{ 
-                                    ...styles.buttonBase,
-                                    flex: isMobile ? 'none' : '200px',
-                                    backgroundColor: '#ff6b6b',
-                                }}
-                            >
-                                📮 批量发短信 ({selectedVideoIds.length})
-                            </button>
-                        )}
-                    </>
-                )}
+{selectedVideoIds.length > 0 && (
+    <>
+        <button 
+            onClick={handleBatchCopy} 
+            style={{ 
+                ...styles.buttonBase, 
+                ...styles.buttonPrimary,
+                flex: isMobile ? 'none' : '200px',
+                backgroundColor: '#20c997',
+            }}
+        >
+            批量复制 ({selectedVideoIds.length} 条)
+        </button>
+        {(permissionLevel === 'full' || permissionLevel === 'share') && (
+            <button 
+                onClick={handleOpenBatchSmsModal} 
+                style={{ 
+                    ...styles.buttonBase,
+                    flex: isMobile ? 'none' : '200px',
+                    backgroundColor: '#ff6b6b',
+                }}
+            >
+                📮 批量发短信 ({selectedVideoIds.length})
+            </button>
+        )}
+    </>
+)}
             </div>
             {paginatedVideos.length > 0 ? (isMobile ? renderMobileList() : renderDesktopTable()) : (
                 <p style={{ textAlign: 'center', marginTop: '20px', color: '#6c757d' }}>
@@ -1567,9 +1581,16 @@ video-002 | bsjkb | 第2期 | https://example.com/v2.mp4 |`}
                     <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
                         <img src="/rsvideo.svg" alt="RSV Logo" style={styles.logo} />
                     </a>
-                    <h1 style={styles.headerTitle}>
-                        RSV 管理后台 <br /> <span style={styles.headerSubtitle}>({isReadOnlyMode ? '只读模式' : '可编辑模式'})</span>
-                    </h1>
+<h1 style={styles.headerTitle}>
+    RSV 管理后台 <br /> 
+    <span style={styles.headerSubtitle}>
+        ({permissionLevel === 'full' 
+            ? '完全权限' 
+            : permissionLevel === 'share' 
+            ? '分享模式' 
+            : '只读模式'})
+    </span>
+</h1>
                 </div>
 
                 <button onClick={handleLogout} 

@@ -6,8 +6,8 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [permissionKey, setPermissionKey] = useState('');
-  const [error, setError] = useState(''); // 自定义错误提示
-  const [success, setSuccess] = useState(''); // 自定义成功提示
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,34 +21,64 @@ function Login() {
     setError('');
     setSuccess('');
 
+    // 🆕 账号配置
     const ADMIN_USER = 'admin';
     const ADMIN_PASS = 'admin';
     const EDIT_PERMISSION_KEY = 'qq123123';
+    
+    // 🆕 新增：只能发短信和复制的账号
+    const SHARE_USER = '123456';
+    const SHARE_PASS = '123456';
 
-    // 1. 验证账号密码
-    if (username !== ADMIN_USER || password !== ADMIN_PASS) {
+    // 🆕 权限级别定义：
+    // - 'full': 完全权限（增删改查+发短信+复制）
+    // - 'share': 分享权限（仅查看+发短信+复制）
+    // - 'readonly': 只读权限（仅查看）
+
+    let permissionLevel = 'readonly';
+    let successMessage = '';
+
+    // 1️⃣ 验证 123456 账号（分享权限）
+    if (username === SHARE_USER && password === SHARE_PASS) {
+      if (permissionKey.trim() !== '') {
+        setError('该账号无需输入权限密钥');
+        return;
+      }
+      permissionLevel = 'share';
+      successMessage = '✅ 登录成功！您可以查看、复制链接和发送短信。';
+    }
+    // 2️⃣ 验证 admin 账号
+    else if (username === ADMIN_USER && password === ADMIN_PASS) {
+      // 验证权限密钥
+      if (permissionKey.trim() !== '' && permissionKey !== EDIT_PERMISSION_KEY) {
+        setError('权限密钥错误，登录被拒绝');
+        return;
+      }
+      
+      // 根据是否输入密钥决定权限
+      if (permissionKey === EDIT_PERMISSION_KEY) {
+        permissionLevel = 'full';
+        successMessage = '✅ 登录成功！您拥有完全管理权限。';
+      } else {
+        permissionLevel = 'readonly';
+        successMessage = '✅ 登录成功！当前为只读模式（无编辑权限）。';
+      }
+    }
+    // 3️⃣ 账号密码错误
+    else {
       setError('账号或密码错误');
       return;
     }
 
-    // 2. 如果填写了权限密钥，必须正确；否则拒绝登录
-    if (permissionKey.trim() !== '' && permissionKey !== EDIT_PERMISSION_KEY) {
-      setError('权限密钥错误，登录被拒绝');
-      return;
-    }
-
-    // 3. 账号密码正确，密钥要么空、要么正确 → 允许登录
-    const hasEditPermission = permissionKey === EDIT_PERMISSION_KEY;
-
+    // 🆕 存储权限级别
     localStorage.setItem('authToken', 'logged_in_admin_token');
-    localStorage.setItem('hasEditPermission', String(hasEditPermission));
+    localStorage.setItem('permissionLevel', permissionLevel);
+    
+    // 兼容旧代码（可选）
+    localStorage.setItem('hasEditPermission', String(permissionLevel === 'full'));
 
     // 显示成功提示
-    if (hasEditPermission) {
-      setSuccess('✅ 登录成功！您拥有增删改的最大权限。');
-    } else {
-      setSuccess('✅ 登录成功！当前为只读模式（无编辑权限）。');
-    }
+    setSuccess(successMessage);
 
     // 1.5秒后跳转
     setTimeout(() => {
@@ -71,7 +101,7 @@ function Login() {
           <p style={styles.subtitle}>请输入管理员凭证登录</p>
         </div>
 
-        {/* 自定义提示弹窗（非浏览器 alert） */}
+        {/* 自定义提示弹窗 */}
         {(error || success) && (
           <div style={{
             padding: '12px',
@@ -116,31 +146,54 @@ function Login() {
             />
           </div>
 
-          <div style={styles.inputGroup}>
-            <label htmlFor="permissionKey" style={styles.label}>🔐 增删改权限密钥（选填）</label>
-            <input
-              id="permissionKey"
-              type="password"
-              value={permissionKey}
-              onChange={(e) => setPermissionKey(e.target.value)}
-              style={styles.input}
-              placeholder="输入密钥可获得编辑权限"
-              autoComplete="off"
-            />
-          </div>
+          {/* 🆕 只有 admin 账号才显示权限密钥输入框 */}
+          {username === 'admin' && (
+            <div style={styles.inputGroup}>
+              <label htmlFor="permissionKey" style={styles.label}>🔐 增删改权限密钥（选填）</label>
+              <input
+                id="permissionKey"
+                type="password"
+                value={permissionKey}
+                onChange={(e) => setPermissionKey(e.target.value)}
+                style={styles.input}
+                placeholder="输入密钥可获得编辑权限"
+                autoComplete="off"
+              />
+            </div>
+          )}
 
           <button type="submit" style={styles.button}>
             登录系统
           </button>
 
-          <p style={styles.note}>⚠️ 权限密钥错误将导致登录失败 ⚠️</p>
+          {/* 🆕 根据输入账号显示不同提示 */}
+          {username === 'admin' && (
+            <p style={styles.note}>⚠️ 权限密钥错误将导致登录失败 ⚠️</p>
+          )}
+          {username === '123456' && (
+            <p style={{ ...styles.note, color: '#2e7d32' }}>💡 该账号拥有分享权限（查看+复制+发短信）</p>
+          )}
         </form>
+
+        {/* 🆕 账号说明 */}
+        <div style={{
+          marginTop: '30px',
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          fontSize: '13px',
+          color: '#6c757d',
+          lineHeight: 1.6
+        }}>
+          <strong style={{ color: '#495057' }}>账号说明：</strong><br/>
+          • <b>admin</b>：管理员账号，输入密钥可获得完全权限<br/>
+          • <b>123456</b>：分享账号，只能查看、复制和发送短信
+        </div>
       </div>
     </div>
   );
 }
 
-// 样式保持不变
 const styles = {
   pageContainer: {
     display: 'flex',
